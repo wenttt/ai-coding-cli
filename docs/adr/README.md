@@ -35,7 +35,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0016](./0016-configuration-management.md) | Configuration management (Pydantic-Settings) | Proposed | 2026-05-19 | 0b |
 | [0017](./0017-error-handling-taxonomy.md) | Error handling taxonomy (Retryable / Fatal / Abort) | Proposed | 2026-05-19 | 0b |
 | [0018](./0018-testing-strategy.md) | Testing strategy (mock LLM, unit, integration, E2E) | Proposed | 2026-05-19 | 0b |
-| 0019 | Storage Layer selection (PostgreSQL + pgvector) | _planned_ | | 0c |
+| [0019](./0019-storage-layer.md) | Storage Layer (PostgreSQL + pgvector) | Proposed | 2026-05-19 | 0c |
 | 0020 | Memory Store four-layer architecture | _planned_ | | 0c |
 | 0021 | RAG Engine (vector retrieval, hybrid search) | _planned_ | | 0c |
 | 0022 | Graph DB (Neo4j) integration + sync with PostgreSQL | _planned_ | | 0c |
