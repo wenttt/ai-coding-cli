@@ -19,8 +19,8 @@ This is **not optional process overhead**. It's the contract that makes "product
 |---|---|---|---|---|
 | [0001](./0001-project-vision-scope-constraints.md) | System overview | Accepted (rev 5) | 2026-05-19 | 0a |
 | [0002](./0002-repository-structure-and-package-organization.md) | Repository structure + package organization | Accepted | 2026-05-19 | 0a |
-| [0003](./0003-pipeline-business-model.md) | Pipeline business model (state machine, handlers, orchestrator) | Proposed | 2026-05-19 | 0a |
-| 0004 | Stage 1 Issue-driven design flow | _planned_ | | 0a |
+| [0003](./0003-pipeline-business-model.md) | Pipeline business model (state machine, handlers, orchestrator) | Accepted | 2026-05-19 | 0a |
+| [0004](./0004-stage-1-design-flow.md) | Stage 1 design flow (brownfield / greenfield / cross-project) | Proposed | 2026-05-19 | 0a |
 | 0005 | Operation log schema + governance | _planned_ | | 0a |
 | 0006 | Multi-project + cross-project routing | _planned_ | | 0a |
 | 0007 | Template library (brownfield / greenfield / cross_project) | _planned_ | | 0a |
