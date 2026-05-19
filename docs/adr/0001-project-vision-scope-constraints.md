@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (rev 3)
+Proposed (rev 5)
 
 ## Date
 
@@ -18,7 +18,7 @@ This ADR defines `ai-coding-cli` at a system level. Subsequent ADRs decompose ea
 
 The system exposes two surfaces in v0.2: a CLI for issuing commands and a local Web Dashboard for monitoring and audit. Both run on `127.0.0.1` on the developer's own machine. State is persisted to a local PostgreSQL (with `pgvector`) and Neo4j instance. Each developer's data lives only on their own machine.
 
-The pipeline operates one stage per invocation. The developer summons the agent (via CLI or daemon), the agent reads the current state from Jira and GitHub, executes one stage, writes an operation log, and stops. The human reviews the result and re-invokes for the next stage.
+The pipeline is driven by the Jira ticket's status field. The agent reacts to Jira status changes (via webhook or polling), executes one stage, transitions the Jira status to mark completion, writes an operation log, and stops. Reviewers approve or reject by transitioning the status directly in Jira. The human is in the loop at every approval gate.
 
 The architecture splits cleanly into two layers:
 
@@ -31,18 +31,42 @@ The same Foundation can host other applications in the future; v0.2 ships with t
 
 ### Pipeline Stages
 
-The system orchestrates six stages, each with explicit human review gates. The pipeline is **pull-based** (the agent reads source-of-truth state — Jira ticket status, GitHub Issue/PR state, local operation logs — on each invocation to determine where it is) and **one-step-per-invocation** (the agent completes one stage, logs it, and stops).
+The pipeline is **driven by the Jira ticket's status field**. The Jira workflow is the canonical state machine. The agent reads the ticket's status to determine the next action; on stage completion, the agent transitions the status forward via the Jira API. Human reviewers drive approval transitions directly in the Jira UI.
 
-| Stage | Output | Review gate |
-|---|---|---|
-| 1. Design | A GitHub Issue containing the design markdown (YAML frontmatter + body) | Reviewers comment on the Issue; close with `completed` to approve |
-| 2. Implementation | A `feat/{KEY}-...` branch with code + a code PR linked to the design Issue | Standard PR review |
-| 3. Self-Review | A 6-pass review report on the diff before opening the code PR | Agent decides whether to open PR or fix Sev-1/2 findings first |
-| 4. Test | Test files written + test suite run; failures trigger automatic fix-retry (up to 3 times) | Test results in operation log |
-| 5. Deploy | The project's existing deploy mechanism is triggered; new env vars surfaced | Manual or CI confirmation |
-| 6. Doc Update + Close | README / ARCHITECTURE / CHANGELOG updated; Jira ticket moved to Done | Documentation PR review |
+The reference Jira workflow has 7 statuses:
 
-Stage 1 is Issue-driven (no branches). Stage 2 onward uses branches and PRs. A 3-strike retry-then-escalate policy applies per stage; after the third failure within a stage, the agent stops and produces an `ESCALATED` operation log requesting human intervention.
+```
+TODO → DESIGN_DRAFTING → DESIGN_REVIEW → DESIGN_APPROVED → IN_DEVELOPMENT
+                              ↓                                  ↓
+                        DESIGN_REWORK                       CODE_REVIEW
+                              ↑                                  ↓
+                              └──────────── (rework loop) ──── CODE_REWORK
+                                                                 ↓
+                                            TESTING → DEPLOYING → DONE
+```
+
+Stage-to-status mapping:
+
+| Stage | Entry status | Agent action | Exit status |
+|---|---|---|---|
+| 1. Design | DESIGN_DRAFTING | Generate design, create GitHub Issue, link from Jira | DESIGN_REVIEW |
+| 1.5 Approval | DESIGN_REVIEW | (waits for reviewer transition) | DESIGN_APPROVED or DESIGN_REWORK |
+| 1.6 Rework | DESIGN_REWORK | Read reviewer comments, revise Issue, push | DESIGN_DRAFTING (loop) |
+| 2. Implementation | IN_DEVELOPMENT | Create branch, write code, open PR | CODE_REVIEW |
+| 3. Code Review | CODE_REVIEW | (waits for reviewer transition or PR merge) | TESTING or CODE_REWORK |
+| 3.1 Code Rework | CODE_REWORK | Address review comments, push | CODE_REVIEW (loop) |
+| 4. Test | TESTING | Write + run tests, retry-fix loop | DEPLOYING |
+| 5. Deploy | DEPLOYING | Trigger deploy, surface env var diffs | DONE |
+| 6. Doc Update + Close | (sub-stage of DONE) | Update docs, post final Jira comment | (DONE, final) |
+
+The agent observes Jira state changes via:
+
+- **Webhook** (primary) — Jira posts to the local daemon's `127.0.0.1:8080/jira/webhook` on every ticket transition.
+- **Polling** (fallback) — the daemon polls assigned tickets every N minutes when webhook delivery is unavailable or out of order.
+
+Each agent action is also recorded as an operation log (Markdown file under `docs/operations/{KEY}/`) for detailed execution history. The Jira workflow holds coarse state; operation logs hold fine-grained execution facts.
+
+A 3-strike retry-then-escalate policy applies per stage; the third consecutive failure adds the `escalated` label to the Jira ticket and the agent halts. The reference workflow specification is ADR-0028; the reaction mechanism is ADR-0029; the full pipeline state model is ADR-0003.
 
 ### Jira Operations
 
@@ -117,16 +141,14 @@ The CLI runs in either one-shot mode (a standalone Python process per command) o
 
 ### Local Web Dashboard (secondary, read-only)
 
-`ai-coding web` starts a FastAPI server on `127.0.0.1:8080` (configurable) and opens the browser. The Dashboard is a monitoring + audit surface:
+`ai-coding web` starts a FastAPI server on `127.0.0.1:8080` (configurable) and opens the browser. The Dashboard is a runtime monitoring + audit surface. Pipeline status itself is in Jira; the Dashboard covers what Jira does not:
 
-- All tickets currently in flight with their pipeline stage
-- Operation log timelines per ticket (visual)
+- Operation log timelines per ticket (visual diff of what the agent did each step)
 - Memory store contents (filterable, searchable)
 - RAG retrievals and Graph traversal results
 - Token consumption trends per stage / per ticket
-- Escalated tickets awaiting human intervention
-- Cross-project ticket linkages visualized as a small graph
 - Skill registry and which skills are loaded into which session
+- Daemon health + webhook delivery status
 
 The Dashboard renders the system's state; it does not accept commands. Instructions go through the CLI.
 
@@ -196,6 +218,8 @@ Resolved in subsequent ADRs; listed here for traceability:
 | Q8 | Daemon lifecycle across platforms (systemd / Windows Service / launchd / CLI-managed) | ADR-0027 |
 | Q9 | Web Dashboard frontend stack — HTMX + Tailwind vs minimal React | ADR-0026 |
 | Q10 | Localhost auth threat model — light auth for multi-user OS machines | revisit when threat model is detailed |
+| Q11 | Jira admin availability to build the reference workflow on the company instance; fallback when admin support unavailable | ADR-0028 |
+| Q12 | Webhook delivery reliability across corporate NAT / firewall; polling cadence | ADR-0029 |
 
 ## References
 
