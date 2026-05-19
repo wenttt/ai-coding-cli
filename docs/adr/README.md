@@ -41,7 +41,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0022](./0022-neo4j-graph-integration.md) | Neo4j graph integration + sync | Proposed | 2026-05-19 | 0c |
 | [0023](./0023-memory-governance.md) | Memory Governance (write filter, confidence, conflict, stale) | Proposed | 2026-05-19 | 0c |
 | [0024](./0024-grounding-and-hallucination-prevention.md) | Grounding + Hallucination prevention | Proposed | 2026-05-19 | 0c |
-| 0025 | Guardrail Layer (Input / Output / Action) | _planned_ | | 0c |
+| [0025](./0025-guardrail-layer.md) | Guardrail Layer (Input / Output / Action) | Proposed | 2026-05-19 | 0c |
 | 0026 | Web Dashboard surface (FastAPI + frontend choice, read-only API) | _planned_ | | 0c |
 | 0027 | Daemon lifecycle + CLI mode toggle (one-shot vs daemon-delegate) | _planned_ | | 0c |
 | [0028](./0028-jira-workflow-specification.md) | Jira workflow specification (7-status reference workflow) | Accepted | 2026-05-19 | 0a |
