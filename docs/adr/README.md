@@ -38,7 +38,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0019](./0019-storage-layer.md) | Storage Layer (PostgreSQL + pgvector) | Proposed | 2026-05-19 | 0c |
 | [0020](./0020-memory-store-four-layer.md) | Memory Store four-layer architecture | Proposed | 2026-05-19 | 0c |
 | [0021](./0021-rag-engine.md) | RAG Engine (vector + hybrid retrieval) | Proposed | 2026-05-19 | 0c |
-| 0022 | Graph DB (Neo4j) integration + sync with PostgreSQL | _planned_ | | 0c |
+| [0022](./0022-neo4j-graph-integration.md) | Neo4j graph integration + sync | Proposed | 2026-05-19 | 0c |
 | 0023 | Memory Governance (write filter, confidence, conflict, stale) | _planned_ | | 0c |
 | 0024 | Grounding + Hallucination prevention | _planned_ | | 0c |
 | 0025 | Guardrail Layer (Input / Output / Action) | _planned_ | | 0c |
