@@ -28,7 +28,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0009](./0009-agent-core.md) | Agent Core (ReAct loop, lifecycle hooks, error model) | Proposed | 2026-05-19 | 0b |
 | [0010](./0010-context-layer-three-tier.md) | Context Layer three-tier design | Proposed | 2026-05-19 | 0b |
 | [0011](./0011-compactor.md) | Compactor (MicroCompact / AutoCompact) | Proposed | 2026-05-19 | 0b |
-| 0012 | Skill Loader (discovery + dynamic injection) | _planned_ | | 0b |
+| [0012](./0012-skill-loader.md) | Skill Loader (discovery + dynamic injection) | Proposed | 2026-05-19 | 0b |
 | 0013 | Tool Registry (Native + MCP bridge) | _planned_ | | 0b |
 | 0014 | LLM Adapter (OpenAI-compat + Mock + provider abstraction) | _planned_ | | 0b |
 | 0015 | Observability (event system, logging, metrics) | _planned_ | | 0b |
