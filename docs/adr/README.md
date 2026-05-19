@@ -25,7 +25,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0006](./0006-multi-project-cross-project-routing.md) | Multi-project + cross-project routing | Accepted | 2026-05-19 | 0a |
 | [0007](./0007-template-library.md) | Template library (brownfield / greenfield / cross_project) | Accepted | 2026-05-19 | 0a |
 | [0008](./0008-session-and-conversation-model.md) | Session + Conversation model | Proposed | 2026-05-19 | 0b |
-| 0009 | Agent Core (ReAct loop, lifecycle hooks, error model) | _planned_ | | 0b |
+| [0009](./0009-agent-core.md) | Agent Core (ReAct loop, lifecycle hooks, error model) | Proposed | 2026-05-19 | 0b |
 | 0010 | Context Layer three-tier design | _planned_ | | 0b |
 | 0011 | Compactor (MicroCompact / AutoCompact) | _planned_ | | 0b |
 | 0012 | Skill Loader (discovery + dynamic injection) | _planned_ | | 0b |
