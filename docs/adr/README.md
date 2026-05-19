@@ -17,8 +17,8 @@ This is **not optional process overhead**. It's the contract that makes "product
 
 | # | Title | Status | Date | Phase |
 |---|---|---|---|---|
-| [0001](./0001-project-vision-scope-constraints.md) | System overview | Proposed (rev 5) | 2026-05-19 | 0a |
-| 0002 | Repository structure + package organization | _planned_ | | 0a |
+| [0001](./0001-project-vision-scope-constraints.md) | System overview | Accepted (rev 5) | 2026-05-19 | 0a |
+| [0002](./0002-repository-structure-and-package-organization.md) | Repository structure + package organization | Proposed | 2026-05-19 | 0a |
 | 0003 | Pipeline business model (6 Stages, state inference) | _planned_ | | 0a |
 | 0004 | Stage 1 Issue-driven design flow | _planned_ | | 0a |
 | 0005 | Operation log schema + governance | _planned_ | | 0a |
@@ -44,8 +44,8 @@ This is **not optional process overhead**. It's the contract that makes "product
 | 0025 | Guardrail Layer (Input / Output / Action) | _planned_ | | 0c |
 | 0026 | Web Dashboard surface (FastAPI + frontend choice, read-only API) | _planned_ | | 0c |
 | 0027 | Daemon lifecycle + CLI mode toggle (one-shot vs daemon-delegate) | _planned_ | | 0c |
-| [0028](./0028-jira-workflow-specification.md) | Jira workflow specification (7-status reference workflow) | Proposed | 2026-05-19 | 0a |
-| [0029](./0029-jira-reaction-mechanism.md) | Jira reaction mechanism (webhook + polling) | Proposed | 2026-05-19 | 0a |
+| [0028](./0028-jira-workflow-specification.md) | Jira workflow specification (7-status reference workflow) | Accepted | 2026-05-19 | 0a |
+| [0029](./0029-jira-reaction-mechanism.md) | Jira reaction mechanism (webhook + polling) | Accepted | 2026-05-19 | 0a |
 
 ## Phase 0 sub-phases
 

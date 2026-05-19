@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (rev 5)
+Accepted (rev 5)
 
 ## Date
 
