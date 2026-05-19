@@ -30,7 +30,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0011](./0011-compactor.md) | Compactor (MicroCompact / AutoCompact) | Proposed | 2026-05-19 | 0b |
 | [0012](./0012-skill-loader.md) | Skill Loader (discovery + dynamic injection) | Proposed | 2026-05-19 | 0b |
 | [0013](./0013-tool-registry.md) | Tool Registry (Native + MCP bridge) | Proposed | 2026-05-19 | 0b |
-| 0014 | LLM Adapter (OpenAI-compat + Mock + provider abstraction) | _planned_ | | 0b |
+| [0014](./0014-llm-adapter.md) | LLM Adapter (OpenAI-compat + Anthropic + Mock) | Proposed | 2026-05-19 | 0b |
 | 0015 | Observability (event system, logging, metrics) | _planned_ | | 0b |
 | 0016 | Configuration management (Pydantic-Settings) | _planned_ | | 0b |
 | 0017 | Error handling taxonomy (Retryable / Fatal / Abort) | _planned_ | | 0b |
