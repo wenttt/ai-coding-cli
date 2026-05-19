@@ -29,7 +29,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0010](./0010-context-layer-three-tier.md) | Context Layer three-tier design | Proposed | 2026-05-19 | 0b |
 | [0011](./0011-compactor.md) | Compactor (MicroCompact / AutoCompact) | Proposed | 2026-05-19 | 0b |
 | [0012](./0012-skill-loader.md) | Skill Loader (discovery + dynamic injection) | Proposed | 2026-05-19 | 0b |
-| 0013 | Tool Registry (Native + MCP bridge) | _planned_ | | 0b |
+| [0013](./0013-tool-registry.md) | Tool Registry (Native + MCP bridge) | Proposed | 2026-05-19 | 0b |
 | 0014 | LLM Adapter (OpenAI-compat + Mock + provider abstraction) | _planned_ | | 0b |
 | 0015 | Observability (event system, logging, metrics) | _planned_ | | 0b |
 | 0016 | Configuration management (Pydantic-Settings) | _planned_ | | 0b |
