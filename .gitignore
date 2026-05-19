@@ -44,6 +44,12 @@ Thumbs.db
 *.log
 logs/
 
-# Local conversation/session state
+# Local session/state
 .ai-coding-cli/
 sessions/
+
+# DB local data
+*.db
+*.sqlite
+pgdata/
+neo4j_data/

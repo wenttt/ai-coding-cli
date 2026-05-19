@@ -1,0 +1,56 @@
+# Architecture Decision Records (ADR)
+
+This directory holds the architectural decisions for `ai-coding-cli` v0.2. Every significant decision — what we build, how we build it, what trade-offs we accept — gets its own ADR before any code is written.
+
+This is **not optional process overhead**. It's the contract that makes "production-grade rewrite" different from "another prototype." If a decision isn't written down with rationale, alternatives considered, and consequences accepted, it didn't happen.
+
+## Writing rules
+
+1. **One decision per file.** Compound ADRs hide complexity.
+2. **Filename**: `NNNN-kebab-case-title.md`, NNNN is a zero-padded 4-digit sequence number.
+3. **Status lifecycle**: `Proposed` → `Accepted` → (eventually) `Deprecated` or `Superseded by ADR-XXXX`.
+4. **Don't edit accepted ADRs.** If a decision changes, write a new ADR that supersedes the old one. The old one stays in place as history.
+5. **Include alternatives considered.** A decision without a paper trail of what you rejected isn't a decision, it's a guess.
+6. **Use the template.** See [`0000-adr-template.md`](./0000-adr-template.md).
+
+## Index
+
+| # | Title | Status | Date | Phase |
+|---|---|---|---|---|
+| [0001](./0001-project-vision-scope-constraints.md) | Project vision, scope, constraints | Proposed | 2026-05-19 | 0a |
+| 0002 | Repository structure + package organization | _planned_ | | 0a |
+| 0003 | Pipeline business model (6 Stages, state inference) | _planned_ | | 0a |
+| 0004 | Stage 1 Issue-driven design flow | _planned_ | | 0a |
+| 0005 | Operation log schema + governance | _planned_ | | 0a |
+| 0006 | Multi-project + cross-project routing | _planned_ | | 0a |
+| 0007 | Template library (brownfield / greenfield / cross_project) | _planned_ | | 0a |
+| 0008 | Session + Conversation model | _planned_ | | 0b |
+| 0009 | Agent Core (ReAct loop, lifecycle hooks, error model) | _planned_ | | 0b |
+| 0010 | Context Layer three-tier design | _planned_ | | 0b |
+| 0011 | Compactor (MicroCompact / AutoCompact) | _planned_ | | 0b |
+| 0012 | Skill Loader (discovery + dynamic injection) | _planned_ | | 0b |
+| 0013 | Tool Registry (Native + MCP bridge) | _planned_ | | 0b |
+| 0014 | LLM Adapter (OpenAI-compat + Mock + provider abstraction) | _planned_ | | 0b |
+| 0015 | Observability (event system, logging, metrics) | _planned_ | | 0b |
+| 0016 | Configuration management (Pydantic-Settings) | _planned_ | | 0b |
+| 0017 | Error handling taxonomy (Retryable / Fatal / Abort) | _planned_ | | 0b |
+| 0018 | Testing strategy (mock LLM, unit, integration, E2E) | _planned_ | | 0b |
+| 0019 | Storage Layer selection (PostgreSQL + pgvector) | _planned_ | | 0c |
+| 0020 | Memory Store four-layer architecture | _planned_ | | 0c |
+| 0021 | RAG Engine (vector retrieval, hybrid search) | _planned_ | | 0c |
+| 0022 | Graph DB (Neo4j) integration + sync with PostgreSQL | _planned_ | | 0c |
+| 0023 | Memory Governance (write filter, confidence, conflict, stale) | _planned_ | | 0c |
+| 0024 | Grounding + Hallucination prevention | _planned_ | | 0c |
+| 0025 | Guardrail Layer (Input / Output / Action) | _planned_ | | 0c |
+
+## Phase 0 sub-phases
+
+- **0a**: Top-level + business pipeline ADRs (0001-0007)
+- **0b**: Foundation layer ADRs (0008-0018)
+- **0c**: Memory / Storage / Guardrail ADRs (0019-0025)
+
+Each ADR is reviewed and accepted before the next one is written, unless explicitly batched.
+
+## Review gates
+
+A Phase 0 sub-phase is complete only when **every ADR in it is Accepted**. No code is written for downstream phases until the relevant ADRs are accepted.

@@ -1,156 +1,45 @@
 # ai-coding-cli
 
-> A self-contained AI Coding Agent CLI. No IDE Agent required.
+> **Status: Design Phase (v0.2 rewrite).** No code yet.
+>
+> v0.1 prototype (a 1-day ReAct-loop hello world) has been archived at the tag [`v0.1-prototype-archive`](https://github.com/wenttt/ai-coding-cli/tree/v0.1-prototype-archive). It is **not** representative of the intended design.
 
-Drives the [ai-coding-workflow](https://github.com/wenttt/ai-coding-workflow) pipeline (Jira → design → implement → review → test → deploy) from a single command line. ReAct loop + OpenAI-compatible LLM + MCP tool calling.
+A production-grade AI Coding Agent that drives software development from a Jira ticket through to deploy, designed to operate in restricted corporate environments without depending on third-party IDE Agents.
 
-## Why this exists
+This rewrite is being done with the rigor required for real production deployment: every architectural decision documented in an ADR, designed before implemented, reviewed before built.
 
-The original architecture used VS Code Copilot / Claude Code / Roo Code as the Agent that talked to the `ai-coding-workflow` MCP server. That works on dev-friendly machines, but in restricted corporate environments (locked VS Code forks, no third-party extensions, custom Copilots that don't speak MCP), the Agent layer becomes the failure point.
-
-`ai-coding-cli` is the Agent layer rebuilt as a standalone Python CLI:
-
-- **Talks to ANY OpenAI-compatible LLM endpoint** — your company's internal LLM gateway, Anthropic's OpenAI shim, OpenAI direct, anything that speaks the standard.
-- **Speaks MCP** — calls `ai-coding-workflow` as a subprocess and uses its tools.
-- **No IDE dependency** — runs anywhere Python runs.
-- **Same pipeline rules** — the system prompt embeds the same orchestration rules that `.github/copilot-instructions.md` and `.roorules` used. Stage 1 is Issue-only. Operation logs are mandatory. 3-strike escalation. Etc.
+## Where we are right now
 
 ```
-You (terminal)
-   |  ai-coding "start working on KAN-4"
-   v
-[ai-coding-cli]
-   ReAct loop -> LLM (OpenAI-compat) -> tool calls -> repeat -> final answer
-   |
-   v
-[ai-coding-workflow MCP server]
-   Jira / GitHub / git / repo / tests / operation logs
+Phase 0 — Design (current)
+└── 24 ADRs to write, review, accept before any code is written
+    Estimated 4 weeks.
+
+Phase 1 — Storage Foundation
+Phase 2 — Agent Foundation MVP
+Phase 3 — Context + Compactor
+Phase 4 — Memory + RAG + Graph + Governance
+Phase 5 — Skill Loader
+Phase 6 — Guardrail
+Phase 7 — Business Pipeline (migrate from ai-coding-workflow)
+Phase 8 — Production readiness
+
+Total runway: ~5.5 months for production-ready v0.2.
 ```
 
-## Install
+## Documents to read
 
-```bash
-git clone https://github.com/wenttt/ai-coding-cli.git
-cd ai-coding-cli
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-```
+| Document | Status |
+|---|---|
+| [docs/adr/](./docs/adr/) | ADR index — start here |
+| [docs/adr/0001-project-vision-scope-constraints.md](./docs/adr/0001-project-vision-scope-constraints.md) | First ADR — vision + scope + constraints |
+| docs/architecture/ | (later — architecture diagrams + module specs) |
+| docs/api/ | (later — Phase 1+) |
 
-You also need `ai-coding-workflow` installed somewhere (separate clone + its own venv):
+## Related repos
 
-```bash
-# In a different directory
-git clone https://github.com/wenttt/ai-coding-workflow.git
-cd ai-coding-workflow
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
-Note the path to `ai-coding-workflow/.venv/bin/python` — you'll point at it next.
-
-## Configure
-
-```bash
-cp .env.example .env
-# Edit .env
-```
-
-Required minimum:
-
-```
-OPENAI_BASE_URL=https://llm.your-company.com/v1
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-4o
-MCP_SERVER_COMMAND=/path/to/ai-coding-workflow/.venv/bin/python
-MCP_SERVER_ARGS=-m ai_coding_workflow.server
-MCP_SERVER_ENV_JIRA_BASE_URL=https://your.atlassian.net
-MCP_SERVER_ENV_JIRA_EMAIL=...
-MCP_SERVER_ENV_JIRA_API_TOKEN=...
-MCP_SERVER_ENV_GITHUB_TOKEN=...
-MCP_SERVER_ENV_GITHUB_DEFAULT_OWNER=...
-MCP_SERVER_ENV_GITHUB_DEFAULT_REPO=...
-MCP_SERVER_ENV_WORKSPACE_PATH=/path/to/your/sandbox/repo
-```
-
-Anything starting with `MCP_SERVER_ENV_` is forwarded to the MCP server subprocess (with the prefix stripped). This means you keep ALL config in this one `.env`.
-
-## Use
-
-```bash
-ai-coding chat "start working on KAN-4"
-```
-
-The agent:
-1. Loads the system prompt (pipeline rules — see `src/ai_coding_cli/prompts/system.md`)
-2. Spawns the `ai-coding-workflow` MCP server, discovers its ~35 tools
-3. Sends your instruction to the LLM with the tools attached
-4. ReAct loop: LLM thinks → calls tools → reads results → repeats → final answer
-5. Prints what was done
-
-Other commands:
-
-```bash
-ai-coding show-prompt    # Print the bundled system prompt
-ai-coding version
-```
-
-## How it follows the pipeline
-
-The bundled system prompt embeds the same rules used by the Copilot/Roo Code variants:
-
-- When the user mentions a Jira key → call `get_workflow_state` first to detect the current stage
-- One stage per invocation. Stop after completing it.
-- Stage 1 is Issue-only (no branches / PRs in design phase).
-- Operation logs are mandatory.
-- 3-strike retry → escalate.
-- Cross-project tickets use contract-first design.
-
-To customize, override with `--system /path/to/your-prompt.md`.
-
-## Project layout
-
-```
-ai-coding-cli/
-├── src/ai_coding_cli/
-│   ├── cli.py              # Typer entry point
-│   ├── agent.py            # ReAct loop
-│   ├── llm.py              # OpenAI-compatible wrapper
-│   ├── config.py           # .env loading
-│   ├── tools/
-│   │   └── mcp_client.py   # MCP subprocess + tool dispatch
-│   └── prompts/
-│       └── system.md       # Pipeline rules
-├── tests/
-├── docs/
-│   └── ARCHITECTURE.md
-└── pyproject.toml
-```
-
-## Status
-
-Day-1 MVP. Working pieces:
-
-- ✅ OpenAI-compatible LLM call with tool support
-- ✅ MCP server spawning + tool discovery + tool dispatch
-- ✅ ReAct loop with turn limit
-- ✅ System prompt embedding the pipeline rules
-- ✅ CLI entry point
-
-Not yet:
-
-- ❌ Context window management (long conversations may overflow — for now, one-shot only)
-- ❌ Memory / persistence across invocations
-- ❌ Skill loading on demand
-- ❌ Human-in-the-loop confirmation for destructive operations
-- ❌ Streaming output (Agent waits for full response before printing)
-
-See `docs/ARCHITECTURE.md` for the longer-term shape.
-
-## Related projects
-
-- [ai-coding-workflow](https://github.com/wenttt/ai-coding-workflow) — the MCP server this CLI drives. The "what" of the pipeline (tools + skills + operation log schema).
+- [ai-coding-workflow](https://github.com/wenttt/ai-coding-workflow) — the v0.1 business-pipeline reference implementation. Its tools, schemas, and templates will be migrated into this repo during Phase 7.
+- v0.1 prototype tag: [`v0.1-prototype-archive`](https://github.com/wenttt/ai-coding-cli/tree/v0.1-prototype-archive)
 
 ## License
 
