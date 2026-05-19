@@ -43,7 +43,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0024](./0024-grounding-and-hallucination-prevention.md) | Grounding + Hallucination prevention | Proposed | 2026-05-19 | 0c |
 | [0025](./0025-guardrail-layer.md) | Guardrail Layer (Input / Output / Action) | Proposed | 2026-05-19 | 0c |
 | [0026](./0026-web-dashboard-surface.md) | Web Dashboard surface | Proposed | 2026-05-19 | 0c |
-| 0027 | Daemon lifecycle + CLI mode toggle (one-shot vs daemon-delegate) | _planned_ | | 0c |
+| [0027](./0027-daemon-lifecycle.md) | Daemon lifecycle + CLI mode toggle | Proposed | 2026-05-19 | 0c |
 | [0028](./0028-jira-workflow-specification.md) | Jira workflow specification (7-status reference workflow) | Accepted | 2026-05-19 | 0a |
 | [0029](./0029-jira-reaction-mechanism.md) | Jira reaction mechanism (webhook + polling) | Accepted | 2026-05-19 | 0a |
 
