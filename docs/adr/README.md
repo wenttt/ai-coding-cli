@@ -18,8 +18,8 @@ This is **not optional process overhead**. It's the contract that makes "product
 | # | Title | Status | Date | Phase |
 |---|---|---|---|---|
 | [0001](./0001-project-vision-scope-constraints.md) | System overview | Accepted (rev 5) | 2026-05-19 | 0a |
-| [0002](./0002-repository-structure-and-package-organization.md) | Repository structure + package organization | Proposed | 2026-05-19 | 0a |
-| 0003 | Pipeline business model (6 Stages, state inference) | _planned_ | | 0a |
+| [0002](./0002-repository-structure-and-package-organization.md) | Repository structure + package organization | Accepted | 2026-05-19 | 0a |
+| [0003](./0003-pipeline-business-model.md) | Pipeline business model (state machine, handlers, orchestrator) | Proposed | 2026-05-19 | 0a |
 | 0004 | Stage 1 Issue-driven design flow | _planned_ | | 0a |
 | 0005 | Operation log schema + governance | _planned_ | | 0a |
 | 0006 | Multi-project + cross-project routing | _planned_ | | 0a |
