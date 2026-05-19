@@ -10,14 +10,14 @@ This is **not optional process overhead**. It's the contract that makes "product
 2. **Filename**: `NNNN-kebab-case-title.md`, NNNN is a zero-padded 4-digit sequence number.
 3. **Status lifecycle**: `Proposed` → `Accepted` → (eventually) `Deprecated` or `Superseded by ADR-XXXX`.
 4. **Don't edit accepted ADRs.** If a decision changes, write a new ADR that supersedes the old one. The old one stays in place as history.
-5. **Include alternatives considered.** A decision without a paper trail of what you rejected isn't a decision, it's a guess.
+5. **Write what the system is and how it works, not what it isn't.** Don't include "Scope OUT", "Anti-goals", "Alternatives Considered", or "Why not X" sections. State the design directly. Rejected options can be discussed in conversation; they don't belong in the document.
 6. **Use the template.** See [`0000-adr-template.md`](./0000-adr-template.md).
 
 ## Index
 
 | # | Title | Status | Date | Phase |
 |---|---|---|---|---|
-| [0001](./0001-project-vision-scope-constraints.md) | Project vision, scope, constraints (incl. Product Surface) | Proposed (rev 2) | 2026-05-19 | 0a |
+| [0001](./0001-project-vision-scope-constraints.md) | System overview | Proposed (rev 3) | 2026-05-19 | 0a |
 | 0002 | Repository structure + package organization | _planned_ | | 0a |
 | 0003 | Pipeline business model (6 Stages, state inference) | _planned_ | | 0a |
 | 0004 | Stage 1 Issue-driven design flow | _planned_ | | 0a |

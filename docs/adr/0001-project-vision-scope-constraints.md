@@ -1,352 +1,208 @@
-# ADR-0001: Project Vision, Scope, Constraints
+# ADR-0001: System Overview
 
 ## Status
 
-Proposed (rev 2)
+Proposed (rev 3)
 
 ## Date
 
-2026-05-19 (created)
-2026-05-19 (rev 2: added Product Surface section + local-deployment-only constraints after user clarification)
+2026-05-19
 
 ## Context
 
-We are rewriting `ai-coding-cli` to be a production-grade AI Coding Agent for use inside the author's company. The v0.1 prototype (a 1-day ReAct hello world relying on subprocess MCP and an IDE Agent) was inadequate for production: it did not address context management, memory, governance, observability, or operational concerns that a real Agent deployment requires.
+The author's company environment has a locked-down VS Code fork, no third-party IDE extension support, a custom internal Copilot that does not speak MCP, a self-hosted GitHub Enterprise Server, a self-hosted Jira Server, and an internal OpenAI-compatible LLM gateway. Developers need a way to drive their pipeline work (Jira ticket → design → code → review → test → deploy) with AI assistance while remaining inside these constraints.
 
-Before any code is written, we must agree on what this project IS and what it ISN'T. Without this, every downstream ADR drifts and contradicts.
+This ADR defines the system at a high level. Subsequent ADRs decompose each subsystem.
 
-This ADR establishes:
+## System Overview
 
-1. **What the project is** — its purpose, the user, and the value delivered.
-2. **What it is NOT** — explicit non-goals to prevent scope creep.
-3. **The constraints we operate under** — environmental, technical, and organizational.
-4. **The success criteria** — how we know if this is working.
+`ai-coding-cli` is a self-contained AI Coding Agent that runs locally on each developer's machine and drives software development from a Jira ticket through deployment. It is a Python application built on a ReAct loop over an OpenAI-compatible LLM endpoint, with first-class Memory, three-tier Context, on-demand Skill loading, and three-layer Guardrails.
 
-Every subsequent ADR derives its trade-offs from this one.
+The system exposes two surfaces in v0.2: a CLI for issuing commands and a local Web Dashboard for monitoring and audit. Both run on `127.0.0.1` on the developer's own machine. State is persisted to a local PostgreSQL (with `pgvector`) and Neo4j instance. Each developer's data lives only on their own machine.
 
-## Decision
+The pipeline operates one stage per invocation. The developer summons the agent (via CLI or daemon), the agent reads the current state from Jira and GitHub, executes one stage, writes an operation log, and stops. The human reviews the result and re-invokes for the next stage.
 
-### 1. Purpose
+The architecture splits cleanly into two layers:
 
-`ai-coding-cli` is **a self-contained, production-grade AI Coding Agent** that drives the software development lifecycle from a Jira ticket through to deploy, using a ReAct loop over a configurable OpenAI-compatible LLM. It is the **runtime** for the `ai-coding-workflow` business pipeline (formerly delivered as an MCP server). The CLI is the entry point; future entry points (HTTP API, in-process library use) reuse the same core.
+- **Foundation Layer** provides the generic Agent runtime: Session/Conversation manager, Agent Core with ReAct loop, Context Layer, Compactor, Memory Store, Skill Loader, Tool Registry, Guardrail Layer, LLM Adapter, Storage Layer.
+- **Application Layer** is the business pipeline implementation that runs on the Foundation: the 6 stages, state inference, retry/escalation engine, brownfield/greenfield branching, cross-project handling, multi-project routing, operation log schema, template library.
 
-### 2. Target user
+The same Foundation can host other applications in the future; v0.2 ships with the AI Coding Workflow pipeline as the one application.
 
-Primary: **the author + the author's engineering team**, working inside a restricted corporate environment with:
+## Core Capabilities
 
-- A locked-down VS Code fork that does not run third-party MCP clients reliably
-- A corporate "Copilot" that does not implement the MCP protocol
-- A self-hosted GitHub Enterprise Server (GHES)
-- A self-hosted Jira Server / Data Center
-- Internal LLM gateway exposing an OpenAI-compatible endpoint
-- Mandatory code review + security gates that the Agent must respect, not bypass
+### Pipeline Stages
 
-Secondary: **the author's portfolio / resume**. The architecture must be defensible as "principal engineer–level work."
+The system orchestrates six stages, each with explicit human review gates. The pipeline is **pull-based** (the agent reads source-of-truth state — Jira ticket status, GitHub Issue/PR state, local operation logs — on each invocation to determine where it is) and **one-step-per-invocation** (the agent completes one stage, logs it, and stops).
 
-### 3. Value delivered
+| Stage | Output | Review gate |
+|---|---|---|
+| 1. Design | A GitHub Issue containing the design markdown (YAML frontmatter + body) | Reviewers comment on the Issue; close with `completed` to approve |
+| 2. Implementation | A `feat/{KEY}-...` branch with code + a code PR linked to the design Issue | Standard PR review |
+| 3. Self-Review | A 6-pass review report on the diff before opening the code PR | Agent decides whether to open PR or fix Sev-1/2 findings first |
+| 4. Test | Test files written + test suite run; failures trigger automatic fix-retry (up to 3 times) | Test results in operation log |
+| 5. Deploy | The project's existing deploy mechanism is triggered; new env vars surfaced | Manual or CI confirmation |
+| 6. Doc Update + Close | README / ARCHITECTURE / CHANGELOG updated; Jira ticket moved to Done | Documentation PR review |
 
-For a single developer:
+Stage 1 is Issue-driven (no branches). Stage 2 onward uses branches and PRs. A 3-strike retry-then-escalate policy applies per stage; after the third failure within a stage, the agent stops and produces an `ESCALATED` operation log requesting human intervention.
 
-- One sentence in → fully orchestrated stage execution → human review gate (via CLI)
-- Visual audit + monitoring via local Web Dashboard (browser-based, no centralized service)
-- Audit trail of every Agent decision (operation logs)
-- Context management that survives long conversations and cross-session work
-- Memory that compounds: the more the Agent works on the repo, the better it gets
-- Guardrails that prevent destructive actions and prompt injection
+### Jira Operations
 
-For a team:
+The system interacts with Jira through the Atlassian Server / Cloud REST API and supports:
 
-- Consistent design / implementation / review process across engineers
-- Shared SOPs encoded as Skills, loadable on demand
-- Cross-project orchestration (frontend + backend changes for one Jira ticket) with contract-first design
-- 3-strike escalation: Agent stops and asks for a human after N failures
+- **Read** — fetch a single ticket; list a user's tickets across all projects (with project routing metadata attached: which repo, which workspace, whether the current workspace matches).
+- **Create** — create new Jira tickets programmatically, including:
+  - Standalone tasks / stories / bugs
+  - Sub-tasks under a parent ticket (used during Epic decomposition)
+  - Cross-project sub-tasks for multi-repo features (auto-created from a cross-project design's `affected_projects` matrix)
+- **Update** — modify summary, description, labels, assignee, priority, components, and custom fields.
+- **State transitions** — move a ticket through its workflow (e.g., `In Progress` → `In Review` → `Done`).
+- **Comments** — post comments, including escalation notifications that @-mention the right humans.
+- **Linking** — link tickets to each other (blocks / is blocked by / relates to / is parent of).
 
-### 3a. Product Surface (v0.2)
+Jira state is the source of truth for ticket lifecycle; the system reads it on every invocation rather than caching it.
 
-The project ships with **two surfaces** in v0.2, both running **locally on the developer's own machine**:
+### GitHub Operations
 
-#### Primary: CLI
+The system interacts with GHES (configurable for github.com) through the v3 REST API:
 
-The CLI is the **ground truth entry point** — every action the agent can take is exposed here.
+- **Issues** — create, update, read, list comments, close (with state_reason: `completed` for approved designs or `not_planned` for rejected designs).
+- **Pull Requests** — create, update, read state, list review comments, list check runs, find PR by branch.
+- **Branches** — create from a base, push commits.
+- **Repository content** — read files via API (for cross-repo design context).
+
+### Agent Runtime (Foundation Layer)
+
+The Foundation provides generic Agent capabilities reusable across applications:
+
+- **ReAct loop** — bounded by a step budget; supports parallel and sequential tool dispatch; emits lifecycle events for memory / guardrail subscribers.
+- **Session + Conversation model** — sessions persist across CLI invocations; conversations are scoped multi-turn exchanges within a session.
+- **Three-tier Context** — System Prompt (fixed), Static Prefix (stable per project / per user), Dynamic Context (per task). Ordered to be Prompt-Cache friendly.
+- **Compactor** — MicroCompact (incremental, every N steps, removes redundant tool results) + AutoCompact (global, triggered when context approaches the model window limit, preserves task semantics + key execution facts).
+- **Four-layer Memory** — Short-term (within a conversation), Working (cross-conversation within a session), Episodic (cross-session events: operation logs, ticket histories), Semantic (extracted structured knowledge: project conventions, recurring patterns).
+- **Skill Loader** — Skills are discovered at three levels (user-level, project-level, Claude Code-compatible). A `load_skill` tool injects skill content on demand to keep base context small.
+- **Tool Registry** — Native Python tools (Jira / GitHub / git / filesystem / shell / tests / project state inference) registered statically; optional MCP bridge for external MCP servers.
+- **Three-layer Guardrails** — Input Guardrail (prompt injection detection on incoming user text and tool results), Output Guardrail (Review-Before-Write for high-risk outputs), Action Guardrail (Human-in-the-Loop confirmation for destructive operations like `git push --force`, schema migrations, deploys).
+- **LLM Adapter** — provider-agnostic interface; ships with adapters for OpenAI-compatible endpoints (covering the company's internal gateway, OpenAI, and Anthropic via OpenAI-compat shim), plus a Mock adapter for testing.
+
+### Memory & Retrieval
+
+The system maintains compound memory that improves over time:
+
+- **Memory Governance** — writes pass through a filter that distinguishes grounded facts (sourced from tool calls) from agent self-claims; each memory carries a confidence score and source tag. Conflicts between new and existing memories trigger a review rather than silent overwrite. Aged memories are downweighted and re-grounded before reuse.
+- **Hybrid retrieval** — vector search (pgvector) for semantically similar designs, tickets, and discussions; graph traversal (Neo4j) for relational queries (module dependencies, ticket linkage chains, cross-project effects, SOP knowledge graphs).
+- **Read-after-write verification** — any agent claim of having modified a file or external resource is verified by a follow-up tool read in the same session.
+
+### Storage Layer
+
+- **PostgreSQL** — structured data (sessions, conversations, operation logs, retry counters, skill metadata, configuration) and vector embeddings (`pgvector` extension).
+- **Neo4j** — graph relationships (Jira ticket → repo → module → API endpoint; design ticket lineage; SOP knowledge graphs). Treated as a graph view over the PostgreSQL source of truth; synchronization uses an outbox pattern + CDC.
+- **Local file system** — design documents and operation logs remain on disk as Markdown for git-friendly diffing; PostgreSQL holds the indexed metadata pointing at them.
+
+## Product Surface
+
+### CLI (primary)
+
+The CLI is the entry point for every action.
 
 ```bash
-ai-coding chat "start working on KAN-4"
-ai-coding pipeline status KAN-4
-ai-coding skills list
-ai-coding daemon start
-ai-coding daemon stop
-ai-coding web              # opens dashboard in browser
+ai-coding chat "start working on KAN-4"     # run one pipeline step
+ai-coding pipeline status KAN-4              # inspect current stage + retry count
+ai-coding tickets list                       # list my Jira tickets across all projects
+ai-coding skills list                        # show installed skills
+ai-coding daemon start | stop | status       # manage local daemon
+ai-coding web                                # start daemon + open dashboard
+ai-coding version
 ```
 
-CLI behavior:
-- Each invocation runs to completion (one stage), then exits.
-- Can run as a **standalone one-shot process** (no daemon required for simple commands).
-- Can also **delegate to a running daemon** for shared session state and faster startup (Phase 2 decides which is default; both supported).
-- Returns non-zero exit codes on error so it's scriptable / CI-able.
+The CLI runs in either one-shot mode (a standalone Python process per command) or daemon-delegate mode (forwards the command to a running local daemon for faster startup and shared session state). The CLI returns non-zero exit codes on error so it composes with scripts and CI.
 
-#### Secondary: Local Web Dashboard
+### Local Web Dashboard (secondary, read-only)
 
-A **read-only monitoring + audit surface**. Not a second Agent UI. Not where commands are issued.
+`ai-coding web` starts a FastAPI server on `127.0.0.1:8080` (configurable) and opens the browser. The Dashboard is a monitoring + audit surface:
 
-```bash
-ai-coding web        # starts on 127.0.0.1:8080 (or configured port)
-                     # opens the browser to the dashboard
-```
-
-What the Dashboard shows:
-- All tickets currently in flight + their pipeline stage
-- Operation log timeline per ticket (visual)
+- All tickets currently in flight with their pipeline stage
+- Operation log timelines per ticket (visual)
 - Memory store contents (filterable, searchable)
-- RAG / Graph state (recent retrievals, embedding count)
+- RAG retrievals and Graph traversal results
 - Token consumption trends per stage / per ticket
-- Escalated tickets (require human intervention)
-- Cross-project ticket linkages (visualized as a small graph)
-- Skill registry + which skills loaded into which session
+- Escalated tickets awaiting human intervention
+- Cross-project ticket linkages visualized as a small graph
+- Skill registry and which skills are loaded into which session
 
-What the Dashboard does **NOT** do (deliberate):
-- Accept commands / instructions (those go through CLI)
-- Write to Memory / Storage (read-only)
-- Expose any port outside `127.0.0.1` (per constraint C10)
-- Require authentication (it's local-only, the OS user is the user)
+The Dashboard renders the system's state; it does not accept commands. Instructions go through the CLI.
 
-Tech stack proposal (to be confirmed in ADR-0015 / dedicated Dashboard ADR):
-- FastAPI for the HTTP server (same runtime as the daemon)
-- HTMX + Tailwind (or minimal React if HTMX proves insufficient) — server-rendered, no SPA build pipeline complexity
+### Deployment
 
-#### Deployment model
+Each developer runs their own local instance:
 
-Both CLI and Dashboard run as **local processes on the developer's machine**. No centralized server. Each developer:
-- Installs the package locally (`pip install ai-coding-cli`)
-- Runs a local PostgreSQL + Neo4j (either via Docker Compose bundle we ship, or against user-managed instances)
-- Starts the daemon: `ai-coding daemon start`
-- Opens the dashboard: `ai-coding web`
+1. `pip install ai-coding-cli`
+2. `docker compose up -d` (bundled compose file starts PostgreSQL + Neo4j locally)
+3. Configure `.env` with the company LLM endpoint, Jira PAT, GHES PAT, and workspace paths
+4. `ai-coding daemon start` + `ai-coding web`
 
-Data isolation is automatic: each user's data lives only on their machine.
+Data isolation is automatic — each developer's state lives only on their own machine. The local daemon's HTTP API is the same API a future centralized deployment would expose, which preserves the upgrade path to a team-hosted instance when that's needed.
 
-If team-wide centralized deployment becomes valuable later (cross-team visibility, shared Memory, team SOPs hosting), it is an **explicit upgrade path** — the HTTP API the daemon serves locally is the same surface that a future hosted server would expose, so the lift is "add multi-tenancy + auth" rather than "rebuild." But this is **post-v0.2**.
+## Constraints
 
-#### Surfaces NOT included in v0.2
-
-| Surface | Why deferred |
+| # | Constraint |
 |---|---|
-| IM bot (Slack/Teams/企业微信/钉钉/飞书) | Nice-to-have, but not required to ship a working pipeline. Post-v0.2. |
-| IDE extension (VS Code / JetBrains) | Corporate environment restrictions; ROI unclear. Post-v0.2. |
-| Desktop app (Electron/Tauri wrapper) | Web Dashboard already covers visual needs. Maintenance cost too high. |
-| Centralized / hosted server deployment | v0.2 is local-only by design. Local-first is a constraint, not a stepping stone. |
+| C1 | Runs on locked-down Windows corporate machines (no admin rights, restricted PowerShell, AV scanning subprocesses) |
+| C2 | Cannot rely on third-party IDE extensions or marketplace installs |
+| C3 | LLM access goes through the company's internal OpenAI-compatible gateway |
+| C4 | GHES is the GitHub plane; self-hosted Jira Server is the issue plane |
+| C5 | TLS connections may traverse a corporate proxy with a self-signed CA; Python's TLS chain must trust the corporate root CA |
+| C6 | Source code does not leave the corporate network |
+| C7 | The agent respects code review and security gates (no force-push, no bypassing required checks) |
+| C8 | Operation logs are auditable: who, what, when, why, with what input |
+| C9 | All runtime state and storage stay on the developer's machine |
+| C10 | All service ports bind to `127.0.0.1` only |
 
-### 4. Scope — IN
+## Success Criteria
 
-The system MUST:
+### Technical
 
-- Run anywhere Python 3.11+ runs, including locked-down corporate machines
-- Talk to any OpenAI-compatible LLM endpoint (company gateway, OpenAI, Anthropic shim)
-- Drive a 6-stage pipeline: Design → Implement → Self-Review → Test → Deploy → Doc Update
-- Persist state in PostgreSQL + pgvector and Neo4j (decision deferred to ADR-0019, ADR-0022)
-- Provide a CLI entry point as the v0.2 primary surface
-- **Provide a local Web Dashboard (read-only monitoring + audit) as the v0.2 secondary surface, binding to 127.0.0.1 only**
-- Run as a **local daemon** model: each developer runs their own local instance; no centralized service
-- Be testable end-to-end without calling a real LLM (mock provider for tests)
-- Produce machine-readable operation logs after every stage
-- Enforce a 3-strike retry-then-escalate policy per stage
-- Support brownfield + greenfield project modes
-- Support cross-project (multi-repo) tickets with contract-first design
-- Support multi-project routing (one developer's tickets span multiple Jira projects → multiple GHES repos)
-- Implement a four-layer Memory architecture with write governance
-- Implement three-layer Context with cache-friendly prefix ordering
-- Implement Skill discovery + on-demand injection
-- Implement input + output + action Guardrails (including Human-in-the-Loop)
+| Criterion | Target |
+|---|---|
+| End-to-end pipeline runs on a real Jira ticket | One ticket completes Stage 1-6 in the company environment |
+| Operation logs validate against schema | 100% of stage completions produce schema-valid logs |
+| LLM provider swappable | At least two providers integration-tested (company gateway + Anthropic) |
+| Test coverage | ≥ 80% on Foundation; ≥ 60% on Application |
+| Prompt injection resistance | Curated red-team suite passes 100% |
+| Long-conversation stability | Long-running tickets retain key information across context compaction events |
 
-### 5. Scope — OUT (explicit non-goals)
+### Operational
 
-The system will NOT, in v0.2:
-
-- Replace existing CI/CD systems. We trigger them; we don't reimplement them.
-- Replace Jira or GitHub. We drive them; we don't host alternatives.
-- Be a general-purpose chatbot. The system is task-oriented around the pipeline.
-- Support arbitrary IDE integrations (Cursor extension, VS Code extension, JetBrains plugin). Deferred to post-v0.2.
-- Provide IM bot integrations (Slack/Teams/企业微信/钉钉/飞书). Deferred to post-v0.2.
-- Train or fine-tune models. Inference only.
-- Deploy as a centralized / hosted multi-tenant service. v0.2 is local-deployment-only. Server hosting is a post-v0.2 explicit upgrade path that reuses the same HTTP API surface.
-- Issue commands through the Web Dashboard. The Dashboard is read-only; all instructions go through the CLI.
-- Expose any service port beyond 127.0.0.1. No external network exposure in v0.2.
-- Support languages other than what the underlying LLM and our skills know. We don't lock to a specific stack.
-- Pretend to be an autonomous agent. **The system is summon-once-runs-one-step-stops.** The human is in the loop every step.
-- Support real-time collaboration (multiple humans + one agent on the same ticket simultaneously). Each developer's data is isolated to their machine.
-
-### 6. Hard constraints (non-negotiable)
-
-These are external constraints we cannot change; the architecture must accommodate them:
-
-| # | Constraint | Source |
-|---|---|---|
-| C1 | Must run on locked-down Windows corporate machines (no admin, restricted PowerShell, AV scanning subprocesses) | Author's company IT |
-| C2 | Cannot rely on third-party IDE extensions (custom Copilot fork, no marketplace access) | Author's company IT |
-| C3 | LLM access is via internal OpenAI-compatible gateway; we do NOT pick the LLM | Author's company AI platform |
-| C4 | GHES is the GitHub plane; Jira Server is the issue plane | Author's company tools |
-| C5 | TLS connections may go through corporate proxy with self-signed CA; Python must trust corporate root CA | Author's company network |
-| C6 | Source code may not leave the corporate boundary; any storage must be local or company-internal | Compliance |
-| C7 | The Agent must not bypass code review or security gates (no force-push, no bypassing required checks) | Company policy |
-| C8 | Operation logs must be auditable (who, what, when, why, with what input) | Compliance |
-| **C9** | **All runtime state and storage stay on the developer's local machine. No centralized server in v0.2.** | Compliance + project decision |
-| **C10** | **All service ports bind to `127.0.0.1` only. No external network exposure.** | Security default for local-only deployment |
-
-### 7. Soft constraints (preferred but flexible)
-
-| # | Constraint | Rationale |
-|---|---|---|
-| S1 | Single language for core (Python) | Author's expertise + Python ecosystem for LLM tooling |
-| S2 | Single mono-package (no v0.1 cli + workflow split) | Reduce subprocess failure points |
-| S3 | All durable state in PostgreSQL (single source of truth); Neo4j is a graph view | Operational simplicity |
-| S4 | One .env per deployment; no parallel configuration files | Configuration drift is a leading cause of production incidents |
-| S5 | All LLM calls go through an Adapter; the rest of the codebase is provider-agnostic | Future-proofing |
-| **S6** | **CLI supports both one-shot and daemon-delegate modes** | One-shot is simpler for scripting; daemon-delegate is faster and shares session state with the Dashboard |
-| **S7** | **HTTP API surface used by Dashboard is the same surface a future hosted server would expose** | Preserves the upgrade path to multi-tenant deployment |
-
-### 8. Success criteria (how we know it works)
-
-#### Technical (v0.2 must hit)
-
-| Criterion | Target | How measured |
-|---|---|---|
-| End-to-end pipeline runs on a real Jira ticket | 1 ticket completes Stage 1-7 | Manual run on author's company environment |
-| Operation logs are complete + machine-readable | 100% of stages emit valid logs | Schema validation in CI |
-| LLM provider swappable | At least 2 providers verified (company + Anthropic) | Integration tests |
-| Token consumption per ticket | < target (TBD when baseline measured) | Telemetry per run |
-| Test coverage | ≥ 80% unit coverage on Foundation; ≥ 60% on Pipeline | pytest-cov |
-| Hallucination guardrails effective | Prompt injection attack suite passes 100% | Curated red-team test set |
-| Context overflow handling | Long-running tickets don't lose key information | Long-conversation test fixture |
-
-#### Operational (v0.2 must hit)
-
-- 1 command install on author's company Windows machine
-- Database migrations are reversible
-- All credentials in a single `.env` file; documented in `.env.example`
-- Failure to start surfaces actionable error in stderr within 5 seconds
-- Memory + storage usage profiled and documented
-- **Web Dashboard starts within 3 seconds of `ai-coding web` and renders the ticket list page within another 2 seconds**
-- **Dashboard works on Chrome / Edge / Safari current versions (no obscure browser dependencies)**
-- **Daemon process cleanly handles SIGTERM (graceful shutdown, no orphaned DB connections)**
-
-#### Strategic (v0.2 may aspirationally hit)
-
-- Architecture defensible as "principal engineer-level work" for portfolio purposes
-- At least 1 teammate other than the author uses it (would be an adoption signal)
-- Code can be extracted and open-sourced if company approves
-
-### 9. Anti-goals (things that look like success but aren't)
-
-- **Demoability is not success.** A demo on the author's laptop with cherry-picked tickets does not count.
-- **Coverage of tools/features is not success.** A long list of implemented MCP tools without a working end-to-end run is failure.
-- **Aesthetic code is not success.** Clean code that doesn't run on the company environment is failure.
-- **Theoretical purity is not success.** Architectural elegance that doesn't deliver Stage 1-7 on a real ticket is failure.
-
-## Consequences
-
-### Positive
-
-- Every subsequent ADR has a clear reference point: "does this serve the purpose / fit the constraints / contribute to success?"
-- Scope creep can be cut by referring back to Section 5 (Scope OUT).
-- The Storage + Graph decisions in ADR-0019 / ADR-0022 inherit S3 (PostgreSQL as single source of truth, Neo4j as view).
-- Reviewer can hold the project accountable: if v0.2 ships and the success criteria aren't met, we know.
-
-### Negative
-
-- The breadth (24 ADRs, 5.5 months) commits us to a long Phase 0. Any urgency forcing a faster timeline conflicts with this commitment.
-- "No IDE integration" closes a real user-experience door for v0.2. Some teammates may prefer a VS Code extension over a CLI.
-- "Single LLM provider via Adapter" means we don't optimize for any one LLM's specific tool-calling quirks.
-- Constraint C7 (no bypassing security gates) means the Agent may stall on tickets where the human side is the bottleneck. We accept this.
-
-### Neutral / Trade-offs
-
-- Targeting a specific corporate environment (GHES + Jira Server + locked Windows) makes the system **less portable** in trade for being **actually deployable in the author's environment**. A non-author user would need to adapt config + connector layer.
-- Neo4j commits to an additional database. The graph-related ADRs (0022) will weigh this in detail.
-
-## Alternatives Considered
-
-### Alternative 1: Continue the v0.1 prototype path (Roo Code + MCP server)
-
-**Description**: Keep ai-coding-workflow as a standalone MCP server; rely on Roo Code or similar third-party VS Code extension as the Agent runtime.
-
-**Why not chosen**:
-- Roo Code installations were unreliable on the author's company VS Code fork (MCP plumbing fails silently, SSL issues, AV scans cripple subprocess startup).
-- The company's "Copilot" does not speak MCP.
-- Maintenance cost of a third-party Agent runtime we don't control is high — every Roo Code update could break us.
-- Doesn't satisfy success criterion: "Architecture defensible as principal engineer-level work" (assembly, not engineering).
-
-### Alternative 2: Build a VS Code extension
-
-**Description**: Implement the Agent as a VS Code extension instead of a CLI.
-
-**Why not chosen**:
-- Hard violates C2 (the company VS Code fork's extension model is limited and unreliable).
-- Even if we shipped a working extension, only the author would benefit; teammates with different IDEs would be excluded.
-- A CLI is the universal substrate; extensions can be added later (Phase 9+).
-
-### Alternative 3: Build a server-side / web-app Agent
-
-**Description**: Run the Agent as a hosted internal service with a web UI; developers interact via browser.
-
-**Why not chosen**:
-- C6 (source code may not leave corporate boundary) makes hosting decisions politically expensive.
-- Deferred operational commitment (uptime, scaling, multi-tenant security) is large.
-- v0.2 needs to ship to a single user (the author) first; web-app shape is post-v0.2.
-
-### Alternative 4: Vendor-lock to a single LLM (e.g. just Claude or just GPT-4o)
-
-**Description**: Drop the LLM Adapter; hard-code one provider's SDK.
-
-**Why not chosen**:
-- C3 forces us to use the company's internal LLM; we can't pick.
-- Strategic constraint: the company LLM may change. Adapter pattern is small (low cost), high optionality.
-
-### Alternative 5: Do nothing — wait for company tooling to mature
-
-**Description**: Don't build this. Wait for the company's "Copilot" or some future internal tool.
-
-**Why not chosen**:
-- Author's resume / portfolio needs a real artifact, not a wait-and-see.
-- Company tooling timeline is multi-year and not within author's control.
-- The pipeline problem (Stage 1-7 orchestration with audit) is not on the company's roadmap.
-
-### Alternative 6: Centralized / hosted Web Dashboard from day one
-
-**Description**: Deploy the Dashboard to a shared internal server so the whole team uses one instance.
-
-**Why not chosen**:
-- Compliance (C6): we'd need to negotiate hosting + secrets management + auth + multi-tenant isolation up front. This is months of additional work and political capital.
-- Premature: until v0.2 has at least one real user (the author) consistently using it, there is no validated need for cross-team visibility.
-- Reversible: the HTTP API surface used by the local Dashboard is the same one a future hosted server would expose, so the upgrade path is preserved (constraint S7).
-- Doing both at once dilutes focus from "ship a working v0.2" to "ship a working v0.2 AND operate a service."
-
-### Alternative 7: CLI only (no Dashboard at all in v0.2)
-
-**Description**: Skip the Dashboard. Operation logs in markdown files are enough; CLI provides everything.
-
-**Why not chosen**:
-- Investigated this trade-off explicitly. The author concluded that production-grade monitoring requires visualization — grep-ing markdown files for status across N tickets is operationally weak.
-- The Dashboard cost (FastAPI + HTMX/minimal-React, no SPA build pipeline) is modest compared to the operational value.
-- Auditability target (compliance C8) is much better served by a queryable Dashboard than file traversal.
+| Criterion | Target |
+|---|---|
+| Install on corporate Windows machine | Single command after Docker is available |
+| Failure to start | Actionable error in stderr within 5 seconds |
+| Dashboard startup | Renders within 3 seconds of `ai-coding web` |
+| Dashboard browser support | Current Chrome / Edge / Safari |
+| Daemon shutdown | Clean SIGTERM handling, no orphaned DB connections |
+| Configuration | All credentials in a single `.env` file |
 
 ## Open Questions
 
-These don't block ADR-0001 acceptance but must be answered in later ADRs:
+Resolved in subsequent ADRs; listed here for traceability:
 
-- **Q1**: Does the company LLM expose tool-calling reliably enough? Spec says yes; needs validation in Phase 1. → ADR-0014.
-- **Q2**: Is PostgreSQL allowed on author's company workstation? Will require IT approval if not bundled. → ADR-0019.
-- **Q3**: Is Neo4j practical on a personal workstation, or does it need a shared deployment? → ADR-0022.
-- **Q4**: How are skills shared across team members — do we ship them in this repo, or fork-per-team? → ADR-0012.
-- **Q5**: Do we support Windows + Linux + macOS equally in v0.2, or Windows-first? Author's company env is Windows. → ADR-0002.
-- **Q6**: Is there a public-internet open-source aspiration, or is this purely internal? Affects license + telemetry + dependency choices. → addressed by S5 + project README license.
-- **Q7**: How do we package PostgreSQL + Neo4j for local deployment — bundled Docker Compose, embedded versions (postgres-portable / Neo4j Desktop), or BYO instances? → ADR-0019 / ADR-0022.
-- **Q8**: How does the daemon start/stop across platforms — systemd unit, Windows Service, launchd, or CLI-managed only? Per S6, CLI must support both modes. → dedicated ADR (likely 0026 or post-Phase-0 implementation decision).
-- **Q9**: Web Dashboard tech stack — HTMX + Tailwind vs minimal React. Decide based on the Dashboard's interactivity needs (filtering, real-time updates). → dedicated Dashboard ADR (likely 0026).
-- **Q10**: Does the Dashboard need a "Light auth"? Even at 127.0.0.1, multi-user Windows machines exist; another local OS user can `curl` localhost. → may revisit when threat model is clearer.
+| Q | Topic | Resolved in |
+|---|---|---|
+| Q1 | Reliability of the company LLM's tool-calling support | ADR-0014 |
+| Q2 | PostgreSQL availability on corporate workstations (IT approval, packaging) | ADR-0019 |
+| Q3 | Practicality of Neo4j on a personal workstation (resource footprint, packaging) | ADR-0022 |
+| Q4 | How Skills are shared across team members | ADR-0012 |
+| Q5 | Platform support — Windows-first vs Windows + Linux + macOS equally | ADR-0002 |
+| Q6 | Public open-source aspiration vs purely internal | resolved by license (MIT) and project README |
+| Q7 | Packaging of PostgreSQL + Neo4j for local deployment | ADR-0019 + ADR-0022 |
+| Q8 | Daemon lifecycle across platforms (systemd / Windows Service / launchd / CLI-managed) | ADR-0027 |
+| Q9 | Web Dashboard frontend stack — HTMX + Tailwind vs minimal React | ADR-0026 |
+| Q10 | Localhost auth threat model — light auth for multi-user OS machines | revisit when threat model is detailed |
 
 ## References
 
-- v0.1 prototype: [`v0.1-prototype-archive`](https://github.com/wenttt/ai-coding-cli/tree/v0.1-prototype-archive)
-- Pipeline reference implementation: [ai-coding-workflow](https://github.com/wenttt/ai-coding-workflow)
-- The conversation that triggered this rewrite (May 2026): the prototype Agent kept producing code without going through Stage 1 design review, and the company environment blocked every IDE Agent we tried. The lesson: depending on a third-party Agent runtime is the failure mode.
+- v0.1 prototype tagged at [`v0.1-prototype-archive`](https://github.com/wenttt/ai-coding-cli/tree/v0.1-prototype-archive)
+- Business pipeline reference: [ai-coding-workflow](https://github.com/wenttt/ai-coding-workflow)
 
 ## Reviewers
 
