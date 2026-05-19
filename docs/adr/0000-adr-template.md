@@ -10,7 +10,7 @@ YYYY-MM-DD
 
 ## Context
 
-The situation that forces a decision. State facts: the problem, the constraints, why this needs deciding now. 1-3 paragraphs.
+One or two sentences stating what this ADR decides. Do not narrate the company environment, prior attempts, or "why we need to decide this now." Environment facts that act as constraints go in the Constraints section of the relevant ADR; they do not get re-told here.
 
 ## Decision
 

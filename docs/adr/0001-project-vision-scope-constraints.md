@@ -10,9 +10,7 @@ Proposed (rev 3)
 
 ## Context
 
-The author's company environment has a locked-down VS Code fork, no third-party IDE extension support, a custom internal Copilot that does not speak MCP, a self-hosted GitHub Enterprise Server, a self-hosted Jira Server, and an internal OpenAI-compatible LLM gateway. Developers need a way to drive their pipeline work (Jira ticket → design → code → review → test → deploy) with AI assistance while remaining inside these constraints.
-
-This ADR defines the system at a high level. Subsequent ADRs decompose each subsystem.
+This ADR defines `ai-coding-cli` at a system level. Subsequent ADRs decompose each subsystem.
 
 ## System Overview
 
