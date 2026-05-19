@@ -33,7 +33,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 | [0014](./0014-llm-adapter.md) | LLM Adapter (OpenAI-compat + Anthropic + Mock) | Proposed | 2026-05-19 | 0b |
 | [0015](./0015-observability.md) | Observability (event bus, logging, metrics, event catalog) | Proposed | 2026-05-19 | 0b |
 | [0016](./0016-configuration-management.md) | Configuration management (Pydantic-Settings) | Proposed | 2026-05-19 | 0b |
-| 0017 | Error handling taxonomy (Retryable / Fatal / Abort) | _planned_ | | 0b |
+| [0017](./0017-error-handling-taxonomy.md) | Error handling taxonomy (Retryable / Fatal / Abort) | Proposed | 2026-05-19 | 0b |
 | 0018 | Testing strategy (mock LLM, unit, integration, E2E) | _planned_ | | 0b |
 | 0019 | Storage Layer selection (PostgreSQL + pgvector) | _planned_ | | 0c |
 | 0020 | Memory Store four-layer architecture | _planned_ | | 0c |
