@@ -17,7 +17,7 @@ This is **not optional process overhead**. It's the contract that makes "product
 
 | # | Title | Status | Date | Phase |
 |---|---|---|---|---|
-| [0001](./0001-project-vision-scope-constraints.md) | Project vision, scope, constraints | Proposed | 2026-05-19 | 0a |
+| [0001](./0001-project-vision-scope-constraints.md) | Project vision, scope, constraints (incl. Product Surface) | Proposed (rev 2) | 2026-05-19 | 0a |
 | 0002 | Repository structure + package organization | _planned_ | | 0a |
 | 0003 | Pipeline business model (6 Stages, state inference) | _planned_ | | 0a |
 | 0004 | Stage 1 Issue-driven design flow | _planned_ | | 0a |
@@ -42,6 +42,8 @@ This is **not optional process overhead**. It's the contract that makes "product
 | 0023 | Memory Governance (write filter, confidence, conflict, stale) | _planned_ | | 0c |
 | 0024 | Grounding + Hallucination prevention | _planned_ | | 0c |
 | 0025 | Guardrail Layer (Input / Output / Action) | _planned_ | | 0c |
+| 0026 | Web Dashboard surface (FastAPI + frontend choice, read-only API) | _planned_ | | 0c |
+| 0027 | Daemon lifecycle + CLI mode toggle (one-shot vs daemon-delegate) | _planned_ | | 0c |
 
 ## Phase 0 sub-phases
 

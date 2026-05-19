@@ -2,11 +2,12 @@
 
 ## Status
 
-Proposed
+Proposed (rev 2)
 
 ## Date
 
-2026-05-19
+2026-05-19 (created)
+2026-05-19 (rev 2: added Product Surface section + local-deployment-only constraints after user clarification)
 
 ## Context
 
@@ -46,7 +47,8 @@ Secondary: **the author's portfolio / resume**. The architecture must be defensi
 
 For a single developer:
 
-- One sentence in → fully orchestrated stage execution → human review gate
+- One sentence in → fully orchestrated stage execution → human review gate (via CLI)
+- Visual audit + monitoring via local Web Dashboard (browser-based, no centralized service)
 - Audit trail of every Agent decision (operation logs)
 - Context management that survives long conversations and cross-session work
 - Memory that compounds: the more the Agent works on the repo, the better it gets
@@ -59,6 +61,79 @@ For a team:
 - Cross-project orchestration (frontend + backend changes for one Jira ticket) with contract-first design
 - 3-strike escalation: Agent stops and asks for a human after N failures
 
+### 3a. Product Surface (v0.2)
+
+The project ships with **two surfaces** in v0.2, both running **locally on the developer's own machine**:
+
+#### Primary: CLI
+
+The CLI is the **ground truth entry point** — every action the agent can take is exposed here.
+
+```bash
+ai-coding chat "start working on KAN-4"
+ai-coding pipeline status KAN-4
+ai-coding skills list
+ai-coding daemon start
+ai-coding daemon stop
+ai-coding web              # opens dashboard in browser
+```
+
+CLI behavior:
+- Each invocation runs to completion (one stage), then exits.
+- Can run as a **standalone one-shot process** (no daemon required for simple commands).
+- Can also **delegate to a running daemon** for shared session state and faster startup (Phase 2 decides which is default; both supported).
+- Returns non-zero exit codes on error so it's scriptable / CI-able.
+
+#### Secondary: Local Web Dashboard
+
+A **read-only monitoring + audit surface**. Not a second Agent UI. Not where commands are issued.
+
+```bash
+ai-coding web        # starts on 127.0.0.1:8080 (or configured port)
+                     # opens the browser to the dashboard
+```
+
+What the Dashboard shows:
+- All tickets currently in flight + their pipeline stage
+- Operation log timeline per ticket (visual)
+- Memory store contents (filterable, searchable)
+- RAG / Graph state (recent retrievals, embedding count)
+- Token consumption trends per stage / per ticket
+- Escalated tickets (require human intervention)
+- Cross-project ticket linkages (visualized as a small graph)
+- Skill registry + which skills loaded into which session
+
+What the Dashboard does **NOT** do (deliberate):
+- Accept commands / instructions (those go through CLI)
+- Write to Memory / Storage (read-only)
+- Expose any port outside `127.0.0.1` (per constraint C10)
+- Require authentication (it's local-only, the OS user is the user)
+
+Tech stack proposal (to be confirmed in ADR-0015 / dedicated Dashboard ADR):
+- FastAPI for the HTTP server (same runtime as the daemon)
+- HTMX + Tailwind (or minimal React if HTMX proves insufficient) — server-rendered, no SPA build pipeline complexity
+
+#### Deployment model
+
+Both CLI and Dashboard run as **local processes on the developer's machine**. No centralized server. Each developer:
+- Installs the package locally (`pip install ai-coding-cli`)
+- Runs a local PostgreSQL + Neo4j (either via Docker Compose bundle we ship, or against user-managed instances)
+- Starts the daemon: `ai-coding daemon start`
+- Opens the dashboard: `ai-coding web`
+
+Data isolation is automatic: each user's data lives only on their machine.
+
+If team-wide centralized deployment becomes valuable later (cross-team visibility, shared Memory, team SOPs hosting), it is an **explicit upgrade path** — the HTTP API the daemon serves locally is the same surface that a future hosted server would expose, so the lift is "add multi-tenancy + auth" rather than "rebuild." But this is **post-v0.2**.
+
+#### Surfaces NOT included in v0.2
+
+| Surface | Why deferred |
+|---|---|
+| IM bot (Slack/Teams/企业微信/钉钉/飞书) | Nice-to-have, but not required to ship a working pipeline. Post-v0.2. |
+| IDE extension (VS Code / JetBrains) | Corporate environment restrictions; ROI unclear. Post-v0.2. |
+| Desktop app (Electron/Tauri wrapper) | Web Dashboard already covers visual needs. Maintenance cost too high. |
+| Centralized / hosted server deployment | v0.2 is local-only by design. Local-first is a constraint, not a stepping stone. |
+
 ### 4. Scope — IN
 
 The system MUST:
@@ -67,7 +142,9 @@ The system MUST:
 - Talk to any OpenAI-compatible LLM endpoint (company gateway, OpenAI, Anthropic shim)
 - Drive a 6-stage pipeline: Design → Implement → Self-Review → Test → Deploy → Doc Update
 - Persist state in PostgreSQL + pgvector and Neo4j (decision deferred to ADR-0019, ADR-0022)
-- Provide a CLI entry point as the v0.2 primary UX
+- Provide a CLI entry point as the v0.2 primary surface
+- **Provide a local Web Dashboard (read-only monitoring + audit) as the v0.2 secondary surface, binding to 127.0.0.1 only**
+- Run as a **local daemon** model: each developer runs their own local instance; no centralized service
 - Be testable end-to-end without calling a real LLM (mock provider for tests)
 - Produce machine-readable operation logs after every stage
 - Enforce a 3-strike retry-then-escalate policy per stage
@@ -86,12 +163,15 @@ The system will NOT, in v0.2:
 - Replace existing CI/CD systems. We trigger them; we don't reimplement them.
 - Replace Jira or GitHub. We drive them; we don't host alternatives.
 - Be a general-purpose chatbot. The system is task-oriented around the pipeline.
-- Support arbitrary IDE integrations (Cursor extension, VS Code extension, JetBrains plugin). CLI is the only v0.2 surface. Other surfaces are deferred to post-v0.2.
+- Support arbitrary IDE integrations (Cursor extension, VS Code extension, JetBrains plugin). Deferred to post-v0.2.
+- Provide IM bot integrations (Slack/Teams/企业微信/钉钉/飞书). Deferred to post-v0.2.
 - Train or fine-tune models. Inference only.
-- Provide a web UI / dashboard. Deferred to post-v0.2.
+- Deploy as a centralized / hosted multi-tenant service. v0.2 is local-deployment-only. Server hosting is a post-v0.2 explicit upgrade path that reuses the same HTTP API surface.
+- Issue commands through the Web Dashboard. The Dashboard is read-only; all instructions go through the CLI.
+- Expose any service port beyond 127.0.0.1. No external network exposure in v0.2.
 - Support languages other than what the underlying LLM and our skills know. We don't lock to a specific stack.
 - Pretend to be an autonomous agent. **The system is summon-once-runs-one-step-stops.** The human is in the loop every step.
-- Support real-time collaboration (multiple humans + one agent on the same ticket simultaneously). Deferred.
+- Support real-time collaboration (multiple humans + one agent on the same ticket simultaneously). Each developer's data is isolated to their machine.
 
 ### 6. Hard constraints (non-negotiable)
 
@@ -107,6 +187,8 @@ These are external constraints we cannot change; the architecture must accommoda
 | C6 | Source code may not leave the corporate boundary; any storage must be local or company-internal | Compliance |
 | C7 | The Agent must not bypass code review or security gates (no force-push, no bypassing required checks) | Company policy |
 | C8 | Operation logs must be auditable (who, what, when, why, with what input) | Compliance |
+| **C9** | **All runtime state and storage stay on the developer's local machine. No centralized server in v0.2.** | Compliance + project decision |
+| **C10** | **All service ports bind to `127.0.0.1` only. No external network exposure.** | Security default for local-only deployment |
 
 ### 7. Soft constraints (preferred but flexible)
 
@@ -117,6 +199,8 @@ These are external constraints we cannot change; the architecture must accommoda
 | S3 | All durable state in PostgreSQL (single source of truth); Neo4j is a graph view | Operational simplicity |
 | S4 | One .env per deployment; no parallel configuration files | Configuration drift is a leading cause of production incidents |
 | S5 | All LLM calls go through an Adapter; the rest of the codebase is provider-agnostic | Future-proofing |
+| **S6** | **CLI supports both one-shot and daemon-delegate modes** | One-shot is simpler for scripting; daemon-delegate is faster and shares session state with the Dashboard |
+| **S7** | **HTTP API surface used by Dashboard is the same surface a future hosted server would expose** | Preserves the upgrade path to multi-tenant deployment |
 
 ### 8. Success criteria (how we know it works)
 
@@ -139,6 +223,9 @@ These are external constraints we cannot change; the architecture must accommoda
 - All credentials in a single `.env` file; documented in `.env.example`
 - Failure to start surfaces actionable error in stderr within 5 seconds
 - Memory + storage usage profiled and documented
+- **Web Dashboard starts within 3 seconds of `ai-coding web` and renders the ticket list page within another 2 seconds**
+- **Dashboard works on Chrome / Edge / Safari current versions (no obscure browser dependencies)**
+- **Daemon process cleanly handles SIGTERM (graceful shutdown, no orphaned DB connections)**
 
 #### Strategic (v0.2 may aspirationally hit)
 
@@ -221,6 +308,25 @@ These are external constraints we cannot change; the architecture must accommoda
 - Company tooling timeline is multi-year and not within author's control.
 - The pipeline problem (Stage 1-7 orchestration with audit) is not on the company's roadmap.
 
+### Alternative 6: Centralized / hosted Web Dashboard from day one
+
+**Description**: Deploy the Dashboard to a shared internal server so the whole team uses one instance.
+
+**Why not chosen**:
+- Compliance (C6): we'd need to negotiate hosting + secrets management + auth + multi-tenant isolation up front. This is months of additional work and political capital.
+- Premature: until v0.2 has at least one real user (the author) consistently using it, there is no validated need for cross-team visibility.
+- Reversible: the HTTP API surface used by the local Dashboard is the same one a future hosted server would expose, so the upgrade path is preserved (constraint S7).
+- Doing both at once dilutes focus from "ship a working v0.2" to "ship a working v0.2 AND operate a service."
+
+### Alternative 7: CLI only (no Dashboard at all in v0.2)
+
+**Description**: Skip the Dashboard. Operation logs in markdown files are enough; CLI provides everything.
+
+**Why not chosen**:
+- Investigated this trade-off explicitly. The author concluded that production-grade monitoring requires visualization — grep-ing markdown files for status across N tickets is operationally weak.
+- The Dashboard cost (FastAPI + HTMX/minimal-React, no SPA build pipeline) is modest compared to the operational value.
+- Auditability target (compliance C8) is much better served by a queryable Dashboard than file traversal.
+
 ## Open Questions
 
 These don't block ADR-0001 acceptance but must be answered in later ADRs:
@@ -231,6 +337,10 @@ These don't block ADR-0001 acceptance but must be answered in later ADRs:
 - **Q4**: How are skills shared across team members — do we ship them in this repo, or fork-per-team? → ADR-0012.
 - **Q5**: Do we support Windows + Linux + macOS equally in v0.2, or Windows-first? Author's company env is Windows. → ADR-0002.
 - **Q6**: Is there a public-internet open-source aspiration, or is this purely internal? Affects license + telemetry + dependency choices. → addressed by S5 + project README license.
+- **Q7**: How do we package PostgreSQL + Neo4j for local deployment — bundled Docker Compose, embedded versions (postgres-portable / Neo4j Desktop), or BYO instances? → ADR-0019 / ADR-0022.
+- **Q8**: How does the daemon start/stop across platforms — systemd unit, Windows Service, launchd, or CLI-managed only? Per S6, CLI must support both modes. → dedicated ADR (likely 0026 or post-Phase-0 implementation decision).
+- **Q9**: Web Dashboard tech stack — HTMX + Tailwind vs minimal React. Decide based on the Dashboard's interactivity needs (filtering, real-time updates). → dedicated Dashboard ADR (likely 0026).
+- **Q10**: Does the Dashboard need a "Light auth"? Even at 127.0.0.1, multi-user Windows machines exist; another local OS user can `curl` localhost. → may revisit when threat model is clearer.
 
 ## References
 
