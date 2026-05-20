@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="text-2xl font-semibold text-rose-700 mb-4">Integrity mismatch</h1>
+  <p class="text-slate-700">{{ error }}</p>
+  <p class="text-sm text-slate-500 mt-2">
+    The operation log file has been modified since it was written. Refer to <code>git log</code>
+    or restore from backup before trusting the contents.
+  </p>
+{% endblock %}

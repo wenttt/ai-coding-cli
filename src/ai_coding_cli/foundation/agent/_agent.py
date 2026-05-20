@@ -5,9 +5,8 @@ Lite scope:
 - Retries on LLMRateLimitError / LLMTimeoutError with exponential backoff
 - AutoCompact via Compactor.maybe_compact() at end of turn
 - LLMContextOverflowError -> force-compact + one retry
-- No Guardrail layer yet (Week 4)
-- No skill_loader / load_skill tool (Week 4)
-- No formal EventBus (Week 4); uses structlog for now
+- Guardrail integration: Input check on user_message + tool results, Output
+  check on assistant content, Action check on tool_calls
 """
 
 from __future__ import annotations
@@ -26,11 +25,14 @@ from ..context import ContextBuilder, LoadedSkill, RepoFacts
 from ..errors import (
     AgentError,
     FatalError,
+    GuardrailInputBlocked,
+    GuardrailOutputBlocked,
     LLMContextOverflowError,
     LLMRateLimitError,
     LLMTimeoutError,
     UserAbort,
 )
+from ..guardrail import GuardrailChain, NullGuardrailChain
 from ..llm._adapter import LLMAdapter, LLMResponse, ToolCall
 from ..session import ConversationView, Message, SessionManager, SessionView, TurnRecord
 from ..tools import (
@@ -68,6 +70,7 @@ class Agent:
         loaded_skills: list[LoadedSkill] | None = None,
         operation_log_path: str | None = None,
         dry_run: bool = False,
+        guardrail: GuardrailChain | None = None,
     ) -> None:
         self._session = session
         self._conversation = conversation
@@ -83,6 +86,7 @@ class Agent:
         self._loaded_skills = loaded_skills or []
         self._operation_log_path = operation_log_path
         self._dry_run = dry_run
+        self._guardrail: GuardrailChain = guardrail or NullGuardrailChain()
 
         # Running aggregates
         self._total_prompt_tokens = 0
@@ -114,6 +118,24 @@ class Agent:
                 "stage": self._conversation.stage,
             },
         )
+
+        # Guardrail: input check on the user message before anything else.
+        try:
+            input_decision = await self._guardrail.input_check(
+                user_message, kind="user_message"
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("agent.guardrail_input_error: %s", exc)
+            input_decision = None
+        if input_decision is not None and input_decision.outcome == "block":
+            blocked = GuardrailInputBlocked(
+                input_decision.user_message or "Input guardrail blocked user message.",
+                detected_signals=input_decision.detected_signals,
+            )
+            logger.warning("agent.input_blocked: %s", blocked)
+            return self._result(
+                AgentOutcome.FATAL_ERROR, final_message=None, error=blocked
+            )
 
         # Build the initial message list (Tier 1 + Tier 2 + first user message).
         messages = self._context_builder.build_initial(
@@ -157,6 +179,34 @@ class Agent:
                 self._total_completion_tokens += response.completion_tokens
                 self._total_cache_hit_tokens += getattr(response, "cache_hit_tokens", 0) or 0
 
+                # Guardrail: output check on assistant content. May rewrite or block.
+                output_decision = await self._guardrail.output_check(response.content or "")
+                if output_decision.outcome == "block":
+                    blocked = GuardrailOutputBlocked(
+                        output_decision.user_message
+                        or "Output guardrail blocked assistant content.",
+                        detected_signals=output_decision.detected_signals,
+                    )
+                    logger.warning("agent.output_blocked: %s", blocked)
+                    return self._result(
+                        AgentOutcome.FATAL_ERROR, final_message=None, error=blocked
+                    )
+                if output_decision.outcome == "rewritten":
+                    response = LLMResponse(
+                        content=output_decision.final_content,
+                        tool_calls=response.tool_calls,
+                        finish_reason=response.finish_reason,
+                        prompt_tokens=response.prompt_tokens,
+                        completion_tokens=response.completion_tokens,
+                        total_tokens=response.total_tokens,
+                        cache_hit_tokens=getattr(response, "cache_hit_tokens", 0) or 0,
+                        raw_provider_response=response.raw_provider_response,
+                    )
+                    self._notes.append(
+                        f"output guardrail rewrote turn {turn_index} content "
+                        f"(signals: {', '.join(output_decision.detected_signals)})"
+                    )
+
                 # Append the assistant message to both working list + persisted log.
                 self._context_builder.append_assistant_message(messages, response)
                 await self._session_manager.append_messages(
@@ -191,12 +241,55 @@ class Agent:
                         final_message=response.content or "",
                     )
 
-                # ---------------- Dispatch tools ----------------
-                self._tool_calls_made += len(tool_calls)
-                tool_results = await self._dispatch_tools(tool_calls)
+                # ---------------- Action guardrail ----------------
+                action_decision = await self._guardrail.action_check_all(tool_calls)
+                # Synthesize ToolResults for refused calls; dispatch only allowed ones.
+                refusal_results: dict[str, ToolResult] = {
+                    rc.tool_call.id: ToolResult.refused(
+                        tool_name=rc.tool_call.name,
+                        invocation_id=uuid4().hex,
+                        reason=rc.reason,
+                    )
+                    for rc in action_decision.refused
+                }
+                allowed_calls = action_decision.allowed
+                self._tool_calls_made += len(allowed_calls) + len(action_decision.refused)
+                dispatched = (
+                    await self._dispatch_tools(allowed_calls) if allowed_calls else []
+                )
+                # Map call_id -> ToolResult, preserving original order.
+                dispatched_by_id = dict(
+                    zip([tc.id for tc in allowed_calls], dispatched)
+                )
+                ordered_results: list[ToolResult] = []
+                for tc in tool_calls:
+                    if tc.id in refusal_results:
+                        ordered_results.append(refusal_results[tc.id])
+                    else:
+                        ordered_results.append(dispatched_by_id[tc.id])
+
+                # Guardrail: input check on each tool result before they enter the LLM context.
+                for r in ordered_results:
+                    if r.status != ToolResultStatus.SUCCESS:
+                        continue  # Error/timeout/refused markers are not user-controlled input.
+                    decision = await self._guardrail.input_check(
+                        r.content or "", kind="tool_result"
+                    )
+                    if decision.outcome == "block":
+                        blocked = GuardrailInputBlocked(
+                            decision.user_message
+                            or f"Input guardrail blocked tool result for {r.tool_name!r}.",
+                            detected_signals=decision.detected_signals,
+                        )
+                        logger.warning("agent.tool_result_blocked: %s", blocked)
+                        return self._result(
+                            AgentOutcome.FATAL_ERROR,
+                            final_message=None,
+                            error=blocked,
+                        )
 
                 # Append tool results to both working list + persisted log.
-                paired = list(zip([tc.id for tc in tool_calls], tool_results))
+                paired = list(zip([tc.id for tc in tool_calls], ordered_results))
                 self._context_builder.append_tool_results(messages, paired)
                 await self._session_manager.append_messages(
                     self._conversation.id,

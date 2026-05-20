@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="text-2xl font-semibold mb-2 font-mono">{{ jira_key }}</h1>
+  {% if session %}
+    <p class="text-sm text-slate-600 mb-6">
+      mode: <strong>{{ session.mode }}</strong> ·
+      status: <strong>{{ session.status }}</strong> ·
+      user: {{ session.user_id }}
+    </p>
+  {% endif %}
+
+  <section class="mb-10">
+    <h2 class="text-lg font-semibold mb-3">Operation log timeline</h2>
+    {% if logs %}
+      <ol class="border-l-2 border-slate-200 pl-6 space-y-4">
+        {% for log in logs %}
+          <li>
+            <a class="font-mono text-blue-700 hover:underline" href="/operation_logs/{{ log.db_row_id }}">
+              {{ "%02d" % log.sequence_number }}-{{ log.stage }} v{{ log.revision }}
+            </a>
+            <span class="ml-2 text-xs uppercase tracking-wide px-2 py-0.5 rounded
+              {% if log.status == 'completed' %}bg-emerald-100 text-emerald-800{% elif log.status == 'failed' %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">
+              {{ log.status }}
+            </span>
+            <div class="text-xs text-slate-500">{{ log.timestamp }} · {{ '%.2f' % log.duration_seconds }}s</div>
+            <p class="text-sm mt-1 text-slate-700">{{ log.body_summary }}</p>
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="text-slate-500">No operation logs for this ticket yet.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2 class="text-lg font-semibold mb-3">Conversations</h2>
+    {% if conversations %}
+      <ul class="space-y-2">
+        {% for c in conversations %}
+          <li class="bg-white rounded-lg shadow-sm px-4 py-3">
+            <a class="text-blue-700 hover:underline" href="/conversations/{{ c.id }}">
+              {{ c.stage }} (rev {{ c.revision }}) — {{ c.status }}
+            </a>
+            <span class="text-xs text-slate-500 ml-2">
+              {{ c.turn_count }} turns · {{ c.prompt_tokens + c.completion_tokens }} tokens
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-slate-500">No conversations yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

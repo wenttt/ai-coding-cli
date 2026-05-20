@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="text-2xl font-semibold mb-2">{{ conversation.stage }} · rev {{ conversation.revision }}</h1>
+  <p class="text-sm text-slate-600 mb-6">
+    status: {{ conversation.status }} · {{ conversation.turn_count }} turns ·
+    {{ conversation.prompt_tokens }} prompt + {{ conversation.completion_tokens }} completion tokens
+  </p>
+
+  <h2 class="text-lg font-semibold mb-3">Turn statistics</h2>
+  <div class="bg-white shadow-sm rounded-lg overflow-hidden mb-8">
+    <table class="min-w-full text-sm">
+      <thead class="bg-slate-100 text-slate-600">
+        <tr>
+          <th class="text-left px-4 py-2">#</th>
+          <th class="text-left px-4 py-2">Prompt</th>
+          <th class="text-left px-4 py-2">Completion</th>
+          <th class="text-left px-4 py-2">Cache hit</th>
+          <th class="text-left px-4 py-2">Tool calls</th>
+          <th class="text-left px-4 py-2">Latency</th>
+          <th class="text-left px-4 py-2">Finish</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in turns %}
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-2 font-mono">{{ t.turn_index }}</td>
+            <td class="px-4 py-2">{{ t.prompt_tokens }}</td>
+            <td class="px-4 py-2">{{ t.completion_tokens }}</td>
+            <td class="px-4 py-2">{{ t.cache_hit_tokens }}</td>
+            <td class="px-4 py-2 font-mono text-xs">{{ t.tool_calls_json }}</td>
+            <td class="px-4 py-2">{{ '%.2f' % t.latency_seconds }}s</td>
+            <td class="px-4 py-2">{{ t.finish_reason }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="text-lg font-semibold mb-3">Messages</h2>
+  <div class="space-y-3">
+    {% for m in messages %}
+      <div class="bg-white rounded-lg shadow-sm p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">{{ m.role }}{% if m.name %} · {{ m.name }}{% endif %}</div>
+        <pre class="code text-sm whitespace-pre-wrap text-slate-800">{{ m.content }}</pre>
+        {% if m.tool_calls %}
+          <details class="mt-2 text-xs">
+            <summary class="cursor-pointer text-slate-500">tool calls ({{ m.tool_calls|length }})</summary>
+            <pre class="code text-xs mt-2 bg-slate-50 p-2 rounded">{{ m.tool_calls }}</pre>
+          </details>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+
+  <section class="mb-10">
+    <h2 class="text-lg font-semibold mb-3">Sessions (latest 20)</h2>
+    {% if sessions %}
+      <div class="bg-white shadow-sm rounded-lg overflow-hidden">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600">
+            <tr>
+              <th class="text-left px-4 py-2">Jira key</th>
+              <th class="text-left px-4 py-2">User</th>
+              <th class="text-left px-4 py-2">Mode</th>
+              <th class="text-left px-4 py-2">Status</th>
+              <th class="text-left px-4 py-2">Last active</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sessions %}
+              <tr class="border-t border-slate-100 hover:bg-slate-50">
+                <td class="px-4 py-2 font-mono">
+                  <a class="text-blue-700 hover:underline" href="/tickets/{{ s.jira_key }}">
+                    {{ s.jira_key }}
+                  </a>
+                </td>
+                <td class="px-4 py-2">{{ s.user_id }}</td>
+                <td class="px-4 py-2">{{ s.mode }}</td>
+                <td class="px-4 py-2">{{ s.status }}</td>
+                <td class="px-4 py-2 text-slate-500">{{ s.last_active_at }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-slate-500">No sessions yet. Run <code>ai-coding chat</code> to start one.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2 class="text-lg font-semibold mb-3">Recent operation logs</h2>
+    {% if recent_logs %}
+      <ul class="space-y-2">
+        {% for log in recent_logs %}
+          <li class="bg-white shadow-sm rounded-lg px-4 py-3 flex items-baseline justify-between">
+            <div>
+              <a class="font-mono text-blue-700 hover:underline" href="/operation_logs/{{ log.id }}">
+                {{ log.jira_key }} · {{ log.stage }} v{{ log.revision }}
+              </a>
+              <span class="ml-2 text-xs uppercase tracking-wide px-2 py-0.5 rounded
+                {% if log.status == 'completed' %}bg-emerald-100 text-emerald-800{% elif log.status == 'failed' %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">
+                {{ log.status }}
+              </span>
+            </div>
+            <div class="text-slate-500 text-xs">{{ log.timestamp }}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-slate-500">No operation logs yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -123,6 +123,9 @@ class WebDashboardConfig(BaseSettings):
 class GuardrailConfig(BaseSettings):
     input_check_enabled: bool = True
     output_check_enabled: bool = True
+    output_secret_block: bool = True
+    output_sensitive_file_redact: bool = True
+    output_pii_detection_enabled: bool = False
     action_confirmation_mode: Literal["never", "destructive_only", "always"] = (
         "destructive_only"
     )

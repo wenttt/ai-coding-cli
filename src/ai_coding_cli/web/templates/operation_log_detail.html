@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="text-2xl font-semibold mb-2 font-mono">{{ frontmatter.jira_key }} · {{ frontmatter.stage }} v{{ frontmatter.revision }}</h1>
+  <p class="text-sm text-slate-600 mb-6">
+    status: <strong>{{ frontmatter.status }}</strong> ·
+    agent: {{ frontmatter.agent }} ·
+    timestamp: {{ frontmatter.timestamp }}
+    {% if frontmatter.escalation_reason %}
+      · <span class="text-rose-700">escalation: {{ frontmatter.escalation_reason }}</span>
+    {% endif %}
+  </p>
+
+  <section class="bg-white rounded-lg shadow-sm p-6 mb-8">
+    <h2 class="text-lg font-semibold mb-2">What was done</h2>
+    <pre class="code text-sm whitespace-pre-wrap">{{ body.what_was_done }}</pre>
+  </section>
+  <section class="bg-white rounded-lg shadow-sm p-6 mb-8">
+    <h2 class="text-lg font-semibold mb-2">Impact</h2>
+    <pre class="code text-sm whitespace-pre-wrap">{{ body.impact }}</pre>
+  </section>
+  <section class="bg-white rounded-lg shadow-sm p-6 mb-8">
+    <h2 class="text-lg font-semibold mb-2">What I could not do</h2>
+    <pre class="code text-sm whitespace-pre-wrap">{{ body.what_i_could_not_do }}</pre>
+  </section>
+  <section class="bg-white rounded-lg shadow-sm p-6 mb-8">
+    <h2 class="text-lg font-semibold mb-2">Engineering decisions</h2>
+    <pre class="code text-sm whitespace-pre-wrap">{{ body.engineering_decisions }}</pre>
+  </section>
+  <section class="bg-white rounded-lg shadow-sm p-6 mb-8">
+    <h2 class="text-lg font-semibold mb-2">Next step</h2>
+    <pre class="code text-sm whitespace-pre-wrap">{{ body.next_step }}</pre>
+  </section>
+
+  <details class="mt-8 text-xs text-slate-500">
+    <summary class="cursor-pointer">Frontmatter</summary>
+    <pre class="code bg-slate-50 p-3 rounded mt-2">{{ frontmatter.model_dump_json(indent=2) }}</pre>
+  </details>
+{% endblock %}

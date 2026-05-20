@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}ai-coding Dashboard{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      pre.code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900 min-h-screen">
+    <header class="bg-slate-900 text-white border-b border-slate-700">
+      <div class="max-w-6xl mx-auto px-6 py-3 flex items-center gap-6">
+        <a href="/" class="font-semibold text-lg">ai-coding</a>
+        <nav class="flex gap-4 text-sm text-slate-300">
+          <a class="hover:text-white" href="/">Home</a>
+          <a class="hover:text-white" href="/tickets">Tickets</a>
+          <a class="hover:text-white" href="/health">Health</a>
+        </nav>
+      </div>
+    </header>
+    <main class="max-w-6xl mx-auto px-6 py-8">
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="text-xs text-slate-400 text-center py-6 border-t border-slate-200 mt-12">
+      ai-coding-cli v0.2 Lite — bound to 127.0.0.1
+    </footer>
+  </body>
+</html>
