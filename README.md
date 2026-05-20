@@ -1,42 +1,61 @@
 # ai-coding-cli
 
-> **Status: Phase 0 complete.** All 27 ADRs Accepted. Phase 1 (implementation) unblocked.
+> **v0.2 Lite — single-user local deployment**
 >
-> v0.1 prototype is archived at the tag [`v0.1-prototype-archive`](https://github.com/wenttt/ai-coding-cli/tree/v0.1-prototype-archive). v0.2 is being built from scratch against the design in `docs/adr/`.
+> Phase 0 design complete (27 ADRs Accepted as Standard profile reference for v0.3+).
+> Lite profile (ADR-0030) is the v0.2 ship target: one developer, one Python process, one SQLite file.
 
-A production-grade AI Coding Agent that drives software development from a Jira ticket through to deploy, designed to operate in restricted corporate environments without depending on third-party IDE Agents.
+A self-contained AI Coding Agent that drives software development from a Jira ticket through to deploy. Runs locally on the developer's own machine; no centralized service.
 
-Every architectural decision is documented in an ADR, designed before implemented, reviewed before built.
+## What v0.2 Lite ships
+
+| Surface | |
+|---|---|
+| **CLI** | `ai-coding chat "start KAN-4"` — issue commands; reads + writes everything |
+| **Local Web Dashboard** | `ai-coding web` — read-only monitoring on `127.0.0.1:8080` |
+| **Pipeline** | 6 stages (Design → Implement → Self-Review → Test → Deploy → Doc Update), Jira-state driven |
+| **Storage** | SQLite + sqlite-vec at `~/.ai-coding-cli/state.db`; operation logs as Markdown in workspace |
+| **LLM** | Any OpenAI-compatible endpoint (company gateway / OpenAI / Anthropic shim) |
+| **Tools** | Native Jira, GitHub, git, repo, tests; plus MCP bridge for external MCP servers |
 
 ## Roadmap
 
 ```
-✅ Phase 0 — Design  (27 ADRs, all Accepted)
-⬜ Phase 1 — Storage Foundation                (PostgreSQL + Neo4j + migrations)
-⬜ Phase 2 — Agent Foundation MVP              (Agent Core + LLM Adapter + Tool Registry)
-⬜ Phase 3 — Context + Compactor               (three-tier Context, Micro/AutoCompact)
-⬜ Phase 4 — Memory + RAG + Graph + Governance (4-layer Memory, hybrid retrieval)
-⬜ Phase 5 — Skill Loader                      (auto-preload + load_skill tool)
-⬜ Phase 6 — Guardrail                          (Input + Output + Action layers)
-⬜ Phase 7 — Business Pipeline                 (migrate from ai-coding-workflow)
-⬜ Phase 8 — Production readiness              (perf, monitoring, ops docs)
+✅ Phase 0 — Design  (27 ADRs Standard + ADR-0030 Lite profile, all Accepted)
+🔵 Phase 1 Week 1 — Foundation pieces                  ← in progress
+⬜ Phase 1 Week 2 — Agent Core + Context + Compactor
+⬜ Phase 1 Week 3 — Pipeline + Stage 1 + Jira polling
+⬜ Phase 1 Week 4 — CLI + Web Dashboard + Skill Loader + Guardrails
+⬜ Phase 1 Week 5 — MCP bridge
+⬜ Phase 2+      — Standard profile features (PG, Neo4j, Memory, ...)
 ```
 
-Total runway: ~5.5 months for production-ready v0.2.
+Lite end-to-end target: 5 weeks for a working pipeline on a real Jira ticket.
 
-## Documents to read
+## Install (when v0.2 ships)
 
-| Document | Status |
+```bash
+pip install ai-coding-cli
+cp .env.example .env
+# Edit .env: fill in 8 required fields (Jira, GitHub, LLM endpoints + tokens)
+ai-coding init                    # scaffold workspace .ai-coding-cli/ + conventions.md
+ai-coding daemon start            # background daemon (or run inline for one-shot)
+ai-coding chat "start KAN-4"
+```
+
+## Documents to read in order
+
+| Document | What it covers |
 |---|---|
-| [docs/adr/](./docs/adr/) | ADR index — start here |
-| [docs/adr/0001-project-vision-scope-constraints.md](./docs/adr/0001-project-vision-scope-constraints.md) | First ADR — vision + scope + constraints |
-| docs/architecture/ | (later — architecture diagrams + module specs) |
-| docs/api/ | (later — Phase 1+) |
+| [docs/adr/](./docs/adr/) | ADR index — every architectural decision |
+| [ADR-0030](./docs/adr/0030-v0.2-lite-profile.md) | Lite profile (what v0.2 actually ships) |
+| [ADR-0001](./docs/adr/0001-project-vision-scope-constraints.md) | System overview (Standard profile vision) |
+| [ADR-0003](./docs/adr/0003-pipeline-business-model.md) | 6-stage pipeline state machine |
+| [ADR-0028](./docs/adr/0028-jira-workflow-specification.md) | Reference Jira workflow (for admins) |
 
-## Related repos
+## Related repositories
 
-- [ai-coding-workflow](https://github.com/wenttt/ai-coding-workflow) — the v0.1 business-pipeline reference implementation. Its tools, schemas, and templates will be migrated into this repo during Phase 7.
-- v0.1 prototype tag: [`v0.1-prototype-archive`](https://github.com/wenttt/ai-coding-cli/tree/v0.1-prototype-archive)
+- [ai-coding-workflow](https://github.com/wenttt/ai-coding-workflow) — v0.1 reference implementation. Tools, schemas, templates being ported into this repo during Week 1.
 
 ## License
 

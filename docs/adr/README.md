@@ -49,7 +49,7 @@ ADR-0030 defines the **Lite profile** that v0.2 ships: single-user, single SQLit
 | [0027](./0027-daemon-lifecycle.md) | Daemon lifecycle + CLI mode toggle | Accepted | 2026-05-19 | 0c |
 | [0028](./0028-jira-workflow-specification.md) | Jira workflow specification (7-status reference workflow) | Accepted | 2026-05-19 | 0a |
 | [0029](./0029-jira-reaction-mechanism.md) | Jira reaction mechanism (webhook + polling) | Accepted | 2026-05-19 | 0a |
-| [0030](./0030-v0.2-lite-profile.md) | v0.2 Lite profile (single-user SQLite) | Proposed | 2026-05-20 | Lite |
+| [0030](./0030-v0.2-lite-profile.md) | v0.2 Lite profile (single-user SQLite) | Accepted (rev 2) | 2026-05-20 | Lite |
 
 ## Phase 0 sub-phases (all complete)
 

@@ -19,6 +19,7 @@ ENV/
 .coverage
 .coverage.*
 htmlcov/
+.coverage_html/
 .tox/
 .cache
 .mypy_cache/
@@ -39,17 +40,26 @@ Thumbs.db
 .env
 .env.local
 *.pem
+*.key
 
-# Logs
+# Logs + local state
 *.log
 logs/
-
-# Local session/state
 .ai-coding-cli/
-sessions/
+~/.ai-coding-cli/
 
-# DB local data
+# Docker volumes
+.local-data/
+
+# Local SQLite databases (anywhere)
 *.db
-*.sqlite
-pgdata/
-neo4j_data/
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Hatch / build artifacts
+.hatch/
+
+# Cython build
+*.c
+*.cpp
