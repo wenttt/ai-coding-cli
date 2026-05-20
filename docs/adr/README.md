@@ -11,9 +11,10 @@ This directory holds the architectural decisions for `ai-coding-cli` v0.2. Every
 5. **Write what the system is and how it works, not what it isn't.** Don't include "Scope OUT", "Anti-goals", "Alternatives Considered", or "Why not X" sections. State the design directly. Rejected options can be discussed in conversation; they don't belong in the document.
 6. **Use the template.** See [`0000-adr-template.md`](./0000-adr-template.md).
 
-## Status: Phase 0 complete
+## Status: Phase 0 complete; Lite profile defined
 
-All 27 ADRs are **Accepted**. Phase 1 (Storage Foundation implementation) is unblocked.
+ADRs 0001-0029 (27 ADRs) form the Standard profile design — Accepted, reserved for v0.3+.
+ADR-0030 defines the **Lite profile** that v0.2 ships: single-user, single SQLite file, single Python package. v0.2 implementation begins from Lite.
 
 ## Index
 
@@ -48,6 +49,7 @@ All 27 ADRs are **Accepted**. Phase 1 (Storage Foundation implementation) is unb
 | [0027](./0027-daemon-lifecycle.md) | Daemon lifecycle + CLI mode toggle | Accepted | 2026-05-19 | 0c |
 | [0028](./0028-jira-workflow-specification.md) | Jira workflow specification (7-status reference workflow) | Accepted | 2026-05-19 | 0a |
 | [0029](./0029-jira-reaction-mechanism.md) | Jira reaction mechanism (webhook + polling) | Accepted | 2026-05-19 | 0a |
+| [0030](./0030-v0.2-lite-profile.md) | v0.2 Lite profile (single-user SQLite) | Proposed | 2026-05-20 | Lite |
 
 ## Phase 0 sub-phases (all complete)
 
