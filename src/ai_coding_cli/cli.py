@@ -26,10 +26,12 @@ app = typer.Typer(
 sessions_app = typer.Typer(name="sessions", help="Inspect sessions + conversations.")
 skills_app = typer.Typer(name="skills", help="Skill discovery + introspection.")
 migrate_app = typer.Typer(name="migrate", help="Database migrations.")
+mcp_app = typer.Typer(name="mcp", help="MCP bridge introspection.")
 
 app.add_typer(sessions_app, name="sessions")
 app.add_typer(skills_app, name="skills")
 app.add_typer(migrate_app, name="migrate")
+app.add_typer(mcp_app, name="mcp")
 
 console = Console()
 
@@ -178,11 +180,34 @@ def daemon(
 
     async def _run() -> None:
         from .application.jira_reaction import JiraReactor, JiraReactorConfig
+        from .foundation.tools.mcp import MCPBridgeManager, load_bridges_yaml
+
+        registry = _import_native_tools()
+
+        # Start MCP bridges (if any are configured) before the reactor so the
+        # Agent has access to the full tool set on the first iteration.
+        bridges_yaml = load_bridges_yaml(_resolve_mcp_bridges_path(config))
+        mcp_manager = MCPBridgeManager(
+            yaml_config=bridges_yaml,
+            tool_registry=registry,
+        )
+        if bridges_yaml.bridges:
+            console.print(
+                f"Starting {len(bridges_yaml.bridges)} MCP bridge(s)..."
+            )
+            await mcp_manager.start_all()
+            for name, status in mcp_manager.bridge_status().items():
+                color = {
+                    "online": "green",
+                    "degraded": "yellow",
+                    "offline": "red",
+                }.get(status.value, "white")
+                console.print(f"  [{color}]{name}: {status.value}[/{color}]")
 
         orchestrator = await _build_default_orchestrator(config, dry_run=False)
         reactor = JiraReactor(
             orchestrator=orchestrator,
-            tool_registry=_import_native_tools(),
+            tool_registry=registry,
             config=config,
             reactor_config=JiraReactorConfig(
                 poll_active_seconds=config.jira.poll_active_seconds,
@@ -195,6 +220,8 @@ def daemon(
         except (KeyboardInterrupt, asyncio.CancelledError):
             console.print("Stopping reactor...")
             reactor.stop()
+        finally:
+            await mcp_manager.stop_all()
 
     asyncio.run(_run())
 
@@ -286,6 +313,75 @@ def sessions_list(limit: int = typer.Option(20, "--limit")) -> None:
     for r in rows:
         table.add_row(*[str(r[c]) for c in ("id", "jira_key", "user", "mode", "status", "last_active")])
     console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# `skills` subcommands
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# `mcp` subcommands
+# ---------------------------------------------------------------------------
+
+
+@mcp_app.command("list")
+def mcp_list() -> None:
+    """List configured MCP bridges + their tool overrides."""
+    config = _load_config_or_die()
+    from .foundation.tools.mcp import load_bridges_yaml
+
+    path = _resolve_mcp_bridges_path(config)
+    bridges = load_bridges_yaml(path)
+    if not bridges.bridges:
+        console.print(
+            f"[dim]No bridges configured. Place a mcp_bridges.yaml at "
+            f"{path} to register MCP tools.[/dim]"
+        )
+        return
+    table = Table(show_header=True, header_style="bold")
+    for col in ("name", "namespace", "command", "env_whitelist", "tools_override"):
+        table.add_column(col)
+    for b in bridges.bridges:
+        table.add_row(
+            b.name,
+            b.tools_namespace or "(none)",
+            f"{b.command} {' '.join(b.args)}".strip(),
+            ", ".join(b.env_whitelist.keys()) or "(none)",
+            ", ".join(b.tool_overrides.keys()) or "(none)",
+        )
+    console.print(table)
+
+
+@mcp_app.command("status")
+def mcp_status() -> None:
+    """Probe each configured bridge: connect + list_tools + exit cleanly."""
+    config = _load_config_or_die()
+    from .foundation.tools import ToolRegistry
+    from .foundation.tools.mcp import MCPBridgeManager, load_bridges_yaml
+
+    bridges_yaml = load_bridges_yaml(_resolve_mcp_bridges_path(config))
+    if not bridges_yaml.bridges:
+        console.print("[dim]No bridges configured.[/dim]")
+        return
+
+    async def _probe() -> dict[str, str]:
+        manager = MCPBridgeManager(
+            yaml_config=bridges_yaml,
+            tool_registry=ToolRegistry(),
+        )
+        try:
+            await manager.start_all()
+            return {name: status.value for name, status in manager.bridge_status().items()}
+        finally:
+            await manager.stop_all()
+
+    results = asyncio.run(_probe())
+    for name, status in results.items():
+        color = {"online": "green", "degraded": "yellow", "offline": "red"}.get(
+            status, "white"
+        )
+        console.print(f"  [{color}]{name}: {status}[/{color}]")
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +495,14 @@ async def _build_default_orchestrator(config, *, dry_run: bool):  # type: ignore
 
 def _ensure_db_path(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_mcp_bridges_path(config) -> Path | None:  # type: ignore[no-untyped-def]
+    """Resolve the path to mcp_bridges.yaml: config override > default."""
+    if config.mcp.bridges_path is not None:
+        return Path(config.mcp.bridges_path).expanduser()
+    default = Path.home() / ".config" / "ai-coding-cli" / "mcp_bridges.yaml"
+    return default if default.is_file() else None
 
 
 def _redact_secrets(node: Any) -> None:
